@@ -13,7 +13,6 @@ class ConfigBase(BaseSettings):
 
 
 class DatabaseConfig(ConfigBase):
-    model_config = SettingsConfigDict(env_prefix="POSTGRES_")
 
     PASSWORD: str
     USER: str
@@ -21,7 +20,24 @@ class DatabaseConfig(ConfigBase):
     HOST: str
     PORT: int
 
-    @computed_field  # Прочитал, что классная практика, помогает в сериализации
+    @property
+    def db_url(self):
+        return (f"postgresql+asyncpg://{self.USER}:{self.PASSWORD}@"
+                f"{self.HOST}:{self.PORT}/{self.DB}")
+
+
+class TestDatabaseConfig(DatabaseConfig):
+    model_config = SettingsConfigDict(env_prefix="TEST_POSTGRES_")
+
+    @property
+    def db_url(self):
+        return (f"postgresql+asyncpg://{self.USER}:{self.PASSWORD}@"
+                f"{self.HOST}:{self.PORT}/{self.DB}")
+
+
+class ProdDatabaseConfig(DatabaseConfig):
+    model_config = SettingsConfigDict(env_prefix="POSTGRES_")
+
     @property
     def db_url(self):
         return (f"postgresql+asyncpg://{self.USER}:{self.PASSWORD}@"
@@ -29,7 +45,8 @@ class DatabaseConfig(ConfigBase):
 
 
 class Config(BaseSettings):
-    db: DatabaseConfig = field(default_factory=DatabaseConfig)
+    test_db: TestDatabaseConfig = field(default_factory=TestDatabaseConfig)
+    prod_db: ProdDatabaseConfig = field(default_factory=ProdDatabaseConfig)
 
     @classmethod
     def load(cls) -> "Config":

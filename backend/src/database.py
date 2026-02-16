@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import (
 
 from backend.src.config import config
 
-DATABASE_URL = config.db.db_url
+DATABASE_URL = config.prod_db.db_url
 
 engine = create_async_engine(url=DATABASE_URL)
 

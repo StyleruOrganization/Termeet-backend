@@ -1,0 +1,248 @@
+openapi: 3.0.0
+info:
+  title: Termeet API
+  version: 1.0.0
+  description: API для получения информации о встречах
+
+servers: 
+  - url: https://termeet.tech/api/
+    description: Development server
+
+paths:
+  /meetings/create/:
+    post:
+      summary: Создать слоты для встречи
+      description: Создает слоты для встречи по определенным дням и промежутку времени
+      tags:
+        - Meetings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MeetingCreate"
+      responses:
+        "200":
+          description: Успешный ответ с созданием встречи
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeetingResponse" # Или здесь не надо такую обильную?
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /meetings/list/{hash}/:
+    get:
+      summary: Получить слоты встречи
+      description: Возвращает слоты встречи для выбора, а также уже выбранные участниками
+      tags:
+        - Meetings
+      parameters:
+        - name: hash
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Идентификатор встречи
+      responses:
+        "200":
+          description: Успешный ответ с основной инфой
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeetingResponse"
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /meetings/list/availability/{hash}/:
+    post:
+      summary: Отправить слоты, выбранные пользователем
+      description: Отправляет слоты встречи, которые выбрал пользователь
+      tags:
+        - Meetings
+      parameters:
+        - name: hash
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Идентификатор встречи
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SlotsUserCreate"
+      responses:
+        "200":
+          description: Успешный ответ с отправкой слотов, выбранных пользователем
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlotsUserResponse" # Также посмотри эту схему
+        "500":
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    MeetingResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Название встречи
+          example: "Встреча"
+        description:
+          type: string
+          nullable: true
+          description: Описание встречи
+          example: "Описание встречи"
+        link:
+          type: string
+          nullable: true
+          description: Прикрепленная к встрече ссылка
+          example: "https://telemost.360.yandex.ru/j/6694975853"
+        duration:
+          type: string
+          nullable: true
+          description: Продолжительность встречи
+          format: duration 
+          example: "01:30"
+        hash:
+          type: string
+          description: Идентификатор встречи
+          format: uuid
+          example: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+        slots:
+          type: array
+          description: Все слоты для встречи в формате UTC+0. В случае если встреча состоит из одного слота, то время начала совпадает со временем конца
+          example: [
+            ["2026-12-21Т22:00:00Z", "2026-12-22Т02:00:00Z"], 
+            ["2026-12-22Т22:00:00Z", "2026-12-23Т02:00:00Z"], 
+            ["2026-12-24Т22:00:00Z", "2026-12-25Т02:00:00Z"]
+            ]
+          items:
+            type: array
+            items:
+              type: string
+              format: date-time
+        users:
+          type: object
+          nullable: true
+          description: Слоты, выбранные пользователем в формате UTC+0. В случае если встреча состоит из одного слота, то время начала совпадает со временем конца
+          example: {
+            "Данек": [
+              ["2026-12-21Т22:00:00Z", "2026-12-22Т02:00:00Z"],
+              ["2026-12-22Т22:00:00Z", "2026-12-23Т02:00:00Z"]
+              ],
+            "Кирилл": [
+              ["2026-12-21Т22:00:00Z", "2026-12-21Т23:00:00Z"],
+              ["2026-12-23Т00:00:00Z", "2026-12-23Т01:00:00Z"]
+              ],
+            "Колян": [
+              ["2026-12-25Т00:00:00Z", "2026-12-25Т00:00:00Z"]
+              ]
+          }
+          additionalProperties:
+            type: array
+            items:
+              type: array
+              items:
+                type: string
+                format: date-time
+
+    MeetingCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Название встречи
+          example: "Встреча"
+        description:
+          type: string
+          nullable: true
+          description: Описание встречи
+          example: "Описание встречи"
+        link:
+          type: string
+          nullable: true
+          description: Прикрепленная к встрече ссылка
+          example: "https://telemost.360.yandex.ru/j/6694975853"
+        duration:
+          type: string
+          nullable: true
+          description: Продолжительность встречи
+          format: duration 
+          example: "01:30"
+        slots:
+          type: array
+          description: Все слоты для встречи в формате UTC+0. В случае если встреча состоит из одного слота, то время начала совпадает со временем конца
+          example: [
+            ["2026-12-21Т22:00:00Z", "2026-12-22Т02:00:00Z"], 
+            ["2026-12-22Т22:00:00Z", "2026-12-23Т02:00:00Z"], 
+            ["2026-12-24Т22:00:00Z", "2026-12-25Т02:00:00Z"]
+            ]
+          items:
+            type: array
+            items:
+              type: string
+              format: date-time
+
+    SlotsUserCreate:
+    # Здесь же hash вроде как не нужно передавать, потому что я могу забрать его через параметр запроса...
+      type: object
+      properties:
+        name:
+          type: string
+          description: Имя пользователя
+          example: "Данек"
+        slots:
+          type: array
+          description: Слоты, выбранные пользователем в формате UTC+0. В случае если встреча состоит из одного слота, то время начала совпадает со временем конца
+          example: [
+            ["2026-12-21Т22:00:00Z", "2026-12-22Т02:00:00Z"],
+            ["2026-12-22Т22:00:00Z", "2026-12-23Т02:00:00Z"]
+            ]
+          items:
+            type: array
+            items:
+              type: string
+              format: date-time
+    
+    SlotsUserResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Имя пользователя
+          example: "Данек"
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Internal Server Error"
+        message:
+          type: string
+          example: "Something went wrong"
+
+  responses:
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

@@ -4,6 +4,9 @@ run-name: "Deploy OpenApi"
 on:
   pull_request:
     branches: ["dev"]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/deploy-openapi.yml'
   workflow_dispatch:
 
 jobs:

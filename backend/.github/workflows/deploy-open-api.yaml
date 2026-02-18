@@ -1,0 +1,80 @@
+name: Deploy OpenApi
+run-name: "Deploy OpenApi"
+
+on:
+  pull_request:
+    branches: ["dev"]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/deploy-openapi.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy-openapi:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # нужно для определения изменений
+
+      - name: Check if openapi.yaml changed
+        id: changed
+        run: |
+          if git diff --name-only HEAD^ HEAD | grep -q "docs/openapi.yaml"; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "📄 openapi.yaml изменился"
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "⏭️ openapi.yaml не менялся"
+          fi
+
+      - name: Login to Yandex Container Registry
+        run: |
+          echo ${{ secrets.Y_TOKEN }} | docker login \
+            --username oauth \
+            --password-stdin cr.yandex
+
+      - name: Build and push Docker image
+        if: steps.changed.outputs.changed == 'true'
+        run: |
+          # Собираем образ из папки docs
+          docker build \
+            -t cr.yandex/${{ secrets.CONTAINER_REGISTRY }}/openapi ./docs
+          
+          docker push cr.yandex/${{ secrets.CONTAINER_REGISTRY }}/openapi
+
+      - name: Deploy to server
+        if: steps.changed.outputs.changed == 'true'
+        uses: appleboy/ssh-action@v1.0.0
+        env:
+          REGISTRY: cr.yandex/${{ secrets.CONTAINER_REGISTRY }}
+          DOMAIN: backend-api.termeet-dev.ru
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: REGISTRY,DOMAIN
+          script: |
+            echo "🚀 Деплой OpenAPI спецификации"
+            
+            # Логинимся в registry
+            echo ${{ secrets.Y_TOKEN }} | docker login \
+              --username oauth \
+              --password-stdin cr.yandex
+            
+            # Останавливаем старый контейнер
+            docker stop openapi 2>/dev/null || true
+            docker rm openapi 2>/dev/null || true
+            
+            # Скачиваем свежий образ
+            docker pull ${REGISTRY}/openapi
+            
+            # Запускаем контейнер с правильными метками
+            docker run -d \
+              --name openapi \
+              -e VIRTUAL_HOST=${DOMAIN} \
+              --network nginx-proxy \
+              --restart unless-stopped \
+              ${REGISTRY}/openapi

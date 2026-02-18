@@ -1,47 +1,47 @@
 import uuid
-from datetime import time, date
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Time, ARRAY, Date, ForeignKey
+from sqlalchemy import String, ARRAY, ForeignKey
+from sqlalchemy.dialects.postgresql.json import JSONB
 
 from backend.src.models import Base
 
 if TYPE_CHECKING:
-    from backend.src.user.models import Users
+    from backend.src.users.models import Users
     from backend.src.teams.models import Teams
 
 
 class Meetings(Base):
     __tablename__ = "meetings"
 
-    # Пока по id и будет работать ссылка на встречу
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    name: Mapped[str] = mapped_column(nullable=False)  # Есть ли ограничение
-    # на размер?
-    description: Mapped[str] = mapped_column()
-    link: Mapped[str] = mapped_column()  # Не совсем понятно, что за поле
-    days: Mapped[list[date] | None] = mapped_column(
-        ARRAY(Date), nullable=False
-    )
-    start_time: Mapped[time] = mapped_column(Time, nullable=False)
-    end_time: Mapped[time] = mapped_column(Time, nullable=False)
-    duration: Mapped[int] = mapped_column()  # Поле продолжительность 
-    # (какой тип данных)
-    emails: Mapped[list[str] | None] = mapped_column(ARRAY(String))
-    # Добавить проверку на правильность введенного поля
-    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    owner: Mapped["Users"] = relationship(
-        "Users", back_populates="meetings_owner"
+    name: Mapped[str] = mapped_column(nullable=False)  # Огр-ние на размер
+    description: Mapped[Optional[str]]  # Огр-ние на размер
+    link: Mapped[Optional[str]]  # Огр-ние на размер
+    duration: Mapped[Optional[str]]
+
+    data_range: Mapped[list[list[str]]] = mapped_column(JSONB, nullable=False)
+
+    slots: Mapped[Optional[dict]] = mapped_column(JSONB)
+
+    emails: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String))
+
+    # Поля, обязательные для залогинов
+    owner_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
+    owner: Mapped[Optional["Users"]] = relationship(
+        back_populates="meetings_owner"
     )
 
-    participants: Mapped[list["MeetingsUsers"]] = relationship(
-        "MeetingsUsers", back_populates="meeting"
+    participants: Mapped[Optional[list["Users"]]] = relationship(
+        back_populates="meetings_participant",
+        secondary="meetings_users"
     )
 
-    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"))
-    team: Mapped["Teams"] = relationship("Teams", back_populates="meetings")
-    # Здесь явно потом надо обсудить стратегию загрузки моделейв
+    team_id: Mapped[Optional[int]] = mapped_column(ForeignKey("teams.id"))
+    team: Mapped[Optional["Teams"]] = relationship(
+        back_populates="meetings"
+        )
 
 
 class MeetingsUsers(Base):
@@ -52,11 +52,4 @@ class MeetingsUsers(Base):
     )
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"), primary_key=True
-    )
-
-    meeting: Mapped["Meetings"] = relationship(
-        "Meetings", back_populates="participants"
-    )
-    user: Mapped["Users"] = relationship(
-        "Users", back_populates="meetings_participant"
     )

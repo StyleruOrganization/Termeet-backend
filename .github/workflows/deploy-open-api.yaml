@@ -75,7 +75,7 @@ jobs:
               --name openapi \
               -e VIRTUAL_HOST=${DOMAIN} \
               -e LETSENCRYPT_HOST=${DOMAIN} \
-              -e LETsENCRYPT_EMAIL=${EMAIL} \
+              -e LETSENCRYPT_EMAIL=${EMAIL} \
               --network nginx-proxy \
               --restart unless-stopped \
               ${REGISTRY}/openapi

@@ -74,6 +74,7 @@ jobs:
             docker run -d \
               --name openapi \
               -e VIRTUAL_HOST=${DOMAIN} \
+              -e VIRTUAL_PORT=8080 \
               -e LETSENCRYPT_HOST=${DOMAIN} \
               -e LETSENCRYPT_EMAIL=${EMAIL} \
               --network nginx-proxy \

@@ -1,3 +1,4 @@
+from uuid import uuid4, UUID
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -12,9 +13,9 @@ if TYPE_CHECKING:
 class Users(Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(50), nullable=False)
-    surname: Mapped[str] = mapped_column(String(50), nullable=False)
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    first_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    last_name: Mapped[str] = mapped_column(String(50), nullable=False)
     email: Mapped[Optional[str]]
     additional_email: Mapped[Optional[list[str]]] = mapped_column(
         ARRAY(String)

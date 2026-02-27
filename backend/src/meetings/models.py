@@ -1,4 +1,4 @@
-import uuid
+from uuid import uuid4, UUID
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -15,10 +15,10 @@ if TYPE_CHECKING:
 class Meetings(Base):
     __tablename__ = "meetings"
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    name: Mapped[str] = mapped_column(nullable=False)  # Огр-ние на размер
-    description: Mapped[Optional[str]]  # Огр-ние на размер
-    link: Mapped[Optional[str]]  # Огр-ние на размер
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String(256))
+    link: Mapped[Optional[str]] = mapped_column(String(256))
     duration: Mapped[Optional[str]]
 
     data_range: Mapped[list[list[str]]] = mapped_column(JSONB, nullable=False)
@@ -28,7 +28,9 @@ class Meetings(Base):
     emails: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String))
 
     # Поля, обязательные для залогинов
-    owner_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
+    owner_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
     owner: Mapped[Optional["Users"]] = relationship(
         back_populates="meetings_owner"
     )
@@ -38,7 +40,9 @@ class Meetings(Base):
         secondary="meetings_users"
     )
 
-    team_id: Mapped[Optional[int]] = mapped_column(ForeignKey("teams.id"))
+    team_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("teams.id"), nullable=True
+    )
     team: Mapped[Optional["Teams"]] = relationship(
         back_populates="meetings"
         )

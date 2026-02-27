@@ -1,11 +1,10 @@
-from dataclasses import field
-
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ConfigBase(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file="backend/settings/.env",
+        env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore"
     )
@@ -44,8 +43,8 @@ class ProdDatabaseConfig(DatabaseConfig):
 
 
 class Config(BaseSettings):
-    test_db: TestDatabaseConfig = field(default_factory=TestDatabaseConfig)
-    prod_db: ProdDatabaseConfig = field(default_factory=ProdDatabaseConfig)
+    test_db: TestDatabaseConfig = Field(default_factory=TestDatabaseConfig)
+    prod_db: ProdDatabaseConfig = Field(default_factory=ProdDatabaseConfig)
 
     @classmethod
     def load(cls) -> "Config":

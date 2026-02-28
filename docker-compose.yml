@@ -6,16 +6,6 @@ volumes:
   test_postgres_data:
 
 services:  
-  # nginx:
-  #   image: nginx:stable-alpine
-  #   ports:
-  #     - "80:80"  # Если порт занят, то поменяй на "8050:80"
-  #   volumes:
-  #     - "./nginx.conf:/etc/nginx/nginx.conf"
-  #   depends_on:
-  #     - backend
-  #   networks:
-  #     - dev
 
   backend:
     build:
@@ -29,20 +19,20 @@ services:
     # command: > # Подумай насчет того, нужно ли при разворачивании запускать миграции
     #   sh -c "poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload" 
     env_file:
-      - backend/settings/.env
+      - .env
     volumes:
       - .:/code
     networks:
       - dev
 
   postgres:
-    image: postgres:18-alpine
+    image: postgres:17-alpine
     environment:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_DB=${POSTGRES_DB}
     env_file:
-      - backend/settings/.env
+      - .env
     ports:
      - "${POSTGRES_PORT}:5432"
     volumes:
@@ -51,13 +41,13 @@ services:
       - dev
 
   test_postgres: # Тестовая БД
-    image: postgres:18-alpine
+    image: postgres:17-alpine
     environment:
       - POSTGRES_PASSWORD=${TEST_POSTGRES_PASSWORD}
       - POSTGRES_USER=${TEST_POSTGRES_USER}
       - POSTGRES_DB=${TEST_POSTGRES_DB}
     env_file:
-      - backend/settings/.env
+      - .env
     ports:
      - "${TEST_POSTGRES_PORT}:5432"
     volumes:

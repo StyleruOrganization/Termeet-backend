@@ -8,9 +8,11 @@ app = FastAPI(
     root_path="/api"
 )
 
+origins = [
+    "*"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Здесь измени на url от Николая
+    allow_origins=origins,  # Здесь измени на url от Николая
 )
-
-# Здесь потом добавляй роуты

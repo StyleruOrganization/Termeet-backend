@@ -8,22 +8,27 @@ volumes:
 services:  
 
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        - YOUR_ENV=&{MY_PROJECT_ENV}
-    ports:
-      - 8000:8000
-    command: tail -f /dev/null # Не забудь это удалить!!
-    # command: > # Подумай насчет того, нужно ли при разворачивании запускать миграции
-    #   sh -c "poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload" 
-    env_file:
-      - .env
-    volumes:
-      - .:/code
-    networks:
-      - dev
+      build:
+        context: .
+        dockerfile: Dockerfile
+        args:
+          - YOUR_ENV=${MY_PROJECT_ENV}
+      environment:
+        # Навайбкодил - пересмотреть
+        - POSTGRES_HOST=postgres
+        - TEST_POSTGRES_HOST=postgres
+        - RUNNING_IN_DOCKER=true
+      ports:
+        - 8000:8000
+      command: >
+        sh -c "poetry run alembic -c backend/alembic.ini upgrade head && 
+              poetry run uvicorn backend.src.main:app --host 0.0.0.0 --port 8000 --reload"
+      env_file:
+        - .env
+      volumes:
+        - .:/code
+      networks:
+        - dev
 
   postgres:
     image: postgres:17-alpine
@@ -40,17 +45,17 @@ services:
     networks:
       - dev
 
-  test_postgres: # Тестовая БД
-    image: postgres:17-alpine
-    environment:
-      - POSTGRES_PASSWORD=${TEST_POSTGRES_PASSWORD}
-      - POSTGRES_USER=${TEST_POSTGRES_USER}
-      - POSTGRES_DB=${TEST_POSTGRES_DB}
-    env_file:
-      - .env
-    ports:
-     - "${TEST_POSTGRES_PORT}:5432"
-    volumes:
-     - test_postgres_data:/var/lib/postgresql
-    networks:
-      - dev
+  # test_postgres: # Тестовая БД
+  #   image: postgres:17-alpine
+  #   environment:
+  #     - POSTGRES_PASSWORD=${TEST_POSTGRES_PASSWORD}
+  #     - POSTGRES_USER=${TEST_POSTGRES_USER}
+  #     - POSTGRES_DB=${TEST_POSTGRES_DB}
+  #   env_file:
+  #     - .env
+  #   ports:
+  #    - "${TEST_POSTGRES_PORT}:5432"
+  #   volumes:
+  #    - test_postgres_data:/var/lib/postgresql
+  #   networks:
+  #     - dev

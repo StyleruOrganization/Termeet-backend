@@ -1,10 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.src.meetings.routers import router as meetings_router
+
 app = FastAPI(
-    title="Конструктор рамок Лего",
+    title="Termeet API",
     version="1.0.0",
-    description="API для конструктора рамок Лего",
+    description="API для Termeet",
     root_path="/api"
 )
 
@@ -14,5 +16,7 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Здесь измени на url от Николая
+    allow_origins=origins,
 )
+
+app.include_router(meetings_router)

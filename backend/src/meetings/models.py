@@ -15,15 +15,31 @@ if TYPE_CHECKING:
 class Meetings(Base):
     __tablename__ = "meetings"
 
+    def __str__(self):
+        # Допиши этот метод
+        return (
+            f"MEETING <"
+            f"ID {self.id} "
+            f"NAME {self.name} "
+            f"DESCRIPTION {self.description} "
+            f"LINK {self.link} "
+            f"DURATION {self.duration} "
+            f"DATA_RANGE {self.data_range} "
+            f"SLOTS {self.slots} "
+            f"EMAILS {self.emails}>"
+            )
+
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(256))
     link: Mapped[Optional[str]] = mapped_column(String(256))
     duration: Mapped[Optional[str]]
 
+    # Здесь скорее всего надо поправить на ARRAY
     data_range: Mapped[list[list[str]]] = mapped_column(JSONB, nullable=False)
 
-    slots: Mapped[Optional[dict]] = mapped_column(JSONB)
+    slots: Mapped[Optional[list]] = mapped_column(JSONB)
+    # Здесь скорее всего надо поправить на ARRAY
 
     emails: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String))
 

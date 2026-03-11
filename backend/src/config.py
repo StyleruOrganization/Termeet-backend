@@ -24,15 +24,6 @@ class DatabaseConfig(ConfigBase):
                 f"{self.HOST}:{self.PORT}/{self.DB}")
 
 
-class TestDatabaseConfig(DatabaseConfig):
-    model_config = SettingsConfigDict(env_prefix="TEST_POSTGRES_")
-
-    @property
-    def db_url(self):
-        return (f"postgresql+asyncpg://{self.USER}:{self.PASSWORD}@"
-                f"{self.HOST}:{self.PORT}/{self.DB}")
-
-
 class ProdDatabaseConfig(DatabaseConfig):
     model_config = SettingsConfigDict(env_prefix="POSTGRES_")
 
@@ -43,7 +34,6 @@ class ProdDatabaseConfig(DatabaseConfig):
 
 
 class Config(BaseSettings):
-    test_db: TestDatabaseConfig = Field(default_factory=TestDatabaseConfig)
     prod_db: ProdDatabaseConfig = Field(default_factory=ProdDatabaseConfig)
 
     @classmethod

@@ -13,8 +13,9 @@ router = APIRouter(prefix="/meet", tags=["Meet"])
 
 @router.get("/{hash}",
             response_model=MeetResponse,
-            summary="",
-            description=""
+            summary="Получить всю информацию о встрече",
+            description="Возвращает слоты встречи для выбора, \
+                а также уже выбранные участниками"
             )
 async def get_meeting(
     hash: UUID,
@@ -27,8 +28,10 @@ async def get_meeting(
 # В случае чего добавь статус код 201
 @router.post("/create",
              response_model=MeetResponse,
-             summary="",
-             description=""
+             summary="Создать встречу",
+             description="Создает слоты для встречи по определенным дням \
+                и промежутку времени",
+             status_code=201
              )
 async def create_meeting(
     meeting: MeetCreate,
@@ -41,8 +44,9 @@ async def create_meeting(
 # Измени потом на patch
 @router.patch("/{hash}/slots",
               response_model=SlotsUser,
-              summary="fdsa",
-              description="asdf")
+              summary="Отправить слоты, выбранные пользователем",
+              description="Отправляет слоты встречи, которые выбрал \
+                пользователь")
 async def add_slots(
     hash: UUID,
     slots: SlotsUser,

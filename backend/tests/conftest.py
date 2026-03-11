@@ -13,12 +13,12 @@ from backend.src.users.models import Users  # noqa
 from backend.src.teams.models import Teams  # noqa
 
 
-TEST_DB_URL = config.test_db.db_url
+PROD_DB_URL = config.prod_db.db_url
 
 
 @pytest.fixture(scope="session")
 async def engine():
-    engine = create_async_engine(url=TEST_DB_URL)
+    engine = create_async_engine(url=PROD_DB_URL)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)

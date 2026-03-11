@@ -4,3 +4,10 @@ tests/
 __pycache__
 .vscode
 .venv
+.env-example
+Dockerfile
+docker-compose.yml
+.git
+.gitignore
+.dockerignore
+README.md

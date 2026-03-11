@@ -9,6 +9,6 @@ if TYPE_CHECKING:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    with open("backend/docs/openapi_fastapi.yaml", "w", encoding="utf-8") as f:
+    with open("backend/docs/openapi.yaml", "w", encoding="utf-8") as f:
         yaml.dump(app.openapi(), f)
     yield

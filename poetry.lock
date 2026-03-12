@@ -847,7 +847,7 @@ version = "6.0.3"
 description = "YAML parser and emitter for Python"
 optional = false
 python-versions = ">=3.8"
-groups = ["dev"]
+groups = ["main"]
 files = [
     {file = "PyYAML-6.0.3-cp38-cp38-macosx_10_13_x86_64.whl", hash = "sha256:c2514fceb77bc5e7a2f7adfaa1feb2fb311607c9cb518dbc378688ec73d8292f"},
     {file = "PyYAML-6.0.3-cp38-cp38-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:9c57bb8c96f6d1808c030b1687b9b5fb476abaa47f0db9c0101f5e9f394e97f4"},
@@ -923,6 +923,21 @@ files = [
     {file = "pyyaml-6.0.3-cp39-cp39-win_amd64.whl", hash = "sha256:2e71d11abed7344e42a8849600193d15b6def118602c4c176f748e4583246007"},
     {file = "pyyaml-6.0.3.tar.gz", hash = "sha256:d76623373421df22fb4cf8817020cbb7ef15c725b9d5e45f17e189bfc384190f"},
 ]
+
+[[package]]
+name = "pyyml"
+version = "0.0.2"
+description = "Use python in yaml"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "pyyml-0.0.2-py2.py3-none-any.whl", hash = "sha256:17acc886bb8d58197a745003eae477b18b343ebaa0a304527c5a5dc5770a2b74"},
+    {file = "pyyml-0.0.2.tar.gz", hash = "sha256:f005c753eb36a405321eb653d803861c8570c347f89b35a7c9c21edef5248f5f"},
+]
+
+[package.dependencies]
+pyyaml = ">=3.13"
 
 [[package]]
 name = "sqlalchemy"
@@ -1089,4 +1104,4 @@ standard = ["colorama (>=0.4) ; sys_platform == \"win32\"", "httptools (>=0.6.3)
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13"
-content-hash = "fa092757a02f4a74ffd4849d2f43effb64904705d622e90888a806aee8921c3a"
+content-hash = "20814489803fbd74784fac866be9aa60878aa87ce60a0b4d0abd2198be0a7a2d"

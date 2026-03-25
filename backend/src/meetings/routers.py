@@ -25,7 +25,6 @@ async def get_meeting(
     return await service.get_meeting(hash)
 
 
-# В случае чего добавь статус код 201
 @router.post("/create",
              response_model=MeetResponse,
              summary="Создать встречу",
@@ -41,7 +40,20 @@ async def create_meeting(
     return await service.create_meeting(meeting)
 
 
-# Измени потом на patch
+@router.patch("/{hash}",
+              response_model=MeetResponse,
+              summary="",
+              description=""
+              )
+async def edit_meeting(
+    hash: UUID,
+    meeting: MeetCreate,
+    session: AsyncSession = Depends(get_async_session)
+):
+    service = Service(session)
+    return await service.edit_meeting(hash, meeting)
+
+
 @router.patch("/{hash}/slots",
               response_model=SlotsUser,
               summary="Отправить слоты, выбранные пользователем",

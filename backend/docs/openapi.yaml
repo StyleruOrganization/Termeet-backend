@@ -194,6 +194,38 @@ paths:
         \u0441\u0442\u0440\u0435\u0447\u0435"
       tags:
       - Meet
+    patch:
+      operationId: edit_meeting_meet__hash__patch
+      parameters:
+      - in: path
+        name: hash
+        required: true
+        schema:
+          format: uuid
+          title: Hash
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeetCreate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Edit Meeting
+      tags:
+      - Meet
   /meet/{hash}/slots:
     patch:
       description: "\u041E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0435\u0442 \u0441\

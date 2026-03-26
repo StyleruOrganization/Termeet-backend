@@ -54,6 +54,30 @@ class Infrastructure(Repository):
         await self.session.commit()  # Разберись потом, зачем он нужен
         return object
 
+    async def edit_meeting(
+            self, id: UUID, meeting: dict
+            ) -> Optional[Meetings]:
+        query: Select = select(
+            Meetings
+            ).where(Meetings.id == id)
+
+        result: Result = await self.session.execute(query)
+
+        record: Optional[Meetings] = result.scalar_one_or_none()
+
+        if not record:
+            raise HTTPException(status_code=404, detail="Meeting not found")
+
+        record.name = meeting["name"]
+        record.description = meeting["description"]
+        record.link = meeting["link"]
+        record.duration = meeting["duration"]
+        record.data_range = meeting["dataRange"]
+
+        await self.session.commit()
+
+        return record
+
     async def add_slots(self, id: UUID, name: str, slots: list):
         query: Select = select(
             Meetings

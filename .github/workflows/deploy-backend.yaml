@@ -48,6 +48,8 @@ jobs:
           script: |
             echo "🚀 Деплой backend-а"
             
+            # Комментарий для теста
+
             # Логинимся в registry
             echo ${{ secrets.Y_TOKEN }} | docker login \
               --username oauth \

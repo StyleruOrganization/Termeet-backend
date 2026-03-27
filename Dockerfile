@@ -33,6 +33,5 @@ COPY --from=builder /code/.venv ./.venv
 
 ENV PATH="/code/.venv/bin:$PATH"
 
-# Аккуратнее: переношу только backend и .env
-COPY .env .
+# Аккуратнее: переношу только backend
 COPY backend ./backend

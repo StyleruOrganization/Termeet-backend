@@ -52,11 +52,15 @@ jobs:
             echo ${{ secrets.Y_TOKEN }} | docker login \
               --username oauth \
               --password-stdin cr.yandex
-
+            
+            echo "Контейнеры"
+            docker ps
+            echo "Контейнеры"
+            
             # Для проверки
-            echo "ДИРЕКТОРИЯ"
+            echo "Файлы"
             ls -la
-            echo "ДИРЕКТОРИЯ"
+            echo "Файлы"
 
             # Автоматически проверяет контейнеры на обновления
             # В случае чего соответственно их перезапускает

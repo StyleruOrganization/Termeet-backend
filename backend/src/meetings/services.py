@@ -42,7 +42,21 @@ class Service:
             ) -> MeetResponse:
         dict_meeting = meeting.model_dump()
         orm_meeting = await self.repository.edit_meeting(hash, dict_meeting)
-        pydantic_meeting = MeetResponse.model_validate(orm_meeting)
+        slots = [
+            SlotsUser(name=key, slots=value)
+            for slot in orm_meeting.slots for key, value in slot.items()
+        ]
+
+        pydantic_meeting = MeetResponse(
+            name=orm_meeting.name,
+            description=orm_meeting.description,
+            link=orm_meeting.link,
+            duration=orm_meeting.duration,
+            dataRange=orm_meeting.data_range,
+            hash=orm_meeting.id,
+            slots=slots
+        )
+
         return pydantic_meeting
 
     async def add_slots(self, hash: UUID, slots: SlotsUser):

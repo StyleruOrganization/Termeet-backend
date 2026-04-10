@@ -33,8 +33,15 @@ class ProdDatabaseConfig(DatabaseConfig):
                 f"{self.HOST}:{self.PORT}/{self.DB}")
 
 
+class YandexAuthConfig(ConfigBase):
+    CLIENT_ID: str
+    CLIENT_SECRET: str
+    REDIRECT_URI: str
+
+
 class Config(BaseSettings):
     prod_db: ProdDatabaseConfig = Field(default_factory=ProdDatabaseConfig)
+    yandex_auth: YandexAuthConfig = Field(default_factory=YandexAuthConfig)
 
     @classmethod
     def load(cls) -> "Config":

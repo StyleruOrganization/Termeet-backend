@@ -110,6 +110,39 @@ components:
       - slots
       title: SlotsUser
       type: object
+    UserSchema:
+      properties:
+        additional_emails:
+          anyOf:
+          - items: {}
+            type: array
+          - type: 'null'
+          title: Additional Emails
+        email:
+          title: Email
+          type: string
+        first_name:
+          title: First Name
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        is_active:
+          title: Is Active
+          type: boolean
+        last_name:
+          title: Last Name
+          type: string
+      required:
+      - id
+      - first_name
+      - last_name
+      - is_active
+      - email
+      - additional_emails
+      title: UserSchema
+      type: object
     ValidationError:
       properties:
         loc:
@@ -162,7 +195,8 @@ paths:
         '200':
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/UserSchema'
           description: Successful Response
         '422':
           content:

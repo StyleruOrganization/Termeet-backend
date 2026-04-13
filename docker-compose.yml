@@ -1,4 +1,4 @@
-name: t_backend
+name: local_backend
 
 networks:
   backend-net:
@@ -10,7 +10,7 @@ services:
 
   backend:
     build: .
-    container_name: backend
+    container_name: backend-local
     ports:
       - 8000:8000
     command: |
@@ -41,7 +41,7 @@ services:
 
   postgres:
     image: postgres:17-alpine
-    container_name: postgres
+    container_name: postgres-local
     env_file:
       - .env
     ports:

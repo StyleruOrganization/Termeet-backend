@@ -20,7 +20,7 @@ class OAuthAccount(Base):
     __tablename__ = "oauth_accounts"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    # Возможно стоит добавить access_token,
+    # Возможно стоит добавить client_id, который приходит от Яндекса,
     # чтобы потом пользоваться сервисами Яндекса
 
     provider: Mapped[str] = mapped_column(

@@ -4,12 +4,15 @@ from urllib import parse
 import httpx
 
 from backend.src.auth.infrastructure import Infrastructure
-from backend.src.auth.schemas import Code, AuthTokens, YandexUserData
+from backend.src.auth.schemas import (
+    Code, AuthTokens, YandexUserData, UserSchema
+)
 from backend.src.config import config
 
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+    from backend.src.users.models import Users
 
 
 class Service:
@@ -67,5 +70,15 @@ class Service:
 
         return user_data
 
-    async def register_user(self):
-        ...
+    async def authentication_user(
+            self, user_data: YandexUserData
+            ) -> UserSchema:
+        user_data: dict = user_data.model_dump()
+
+        if user := (await self.repository.yandex_check_user_in_db(user_data)):
+            user: UserSchema = UserSchema.model_validate(user)
+            return user
+
+        user: Users = await self.repository.register_user(user_data)
+        user: UserSchema = UserSchema.model_validate(user)
+        return user

@@ -1,7 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import RedirectResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.src.auth.schemas import Code, AuthTokens, YandexUserData
+from backend.src.dependencies import get_async_session
+from backend.src.auth.schemas import (
+    Code, AuthTokens, YandexUserData, UserSchema
+)
 from backend.src.auth.services import Service
 
 
@@ -21,6 +25,7 @@ async def get_yandex_oauth_url():
 
 
 @router.post("/yandex/callback",
+             response_model=UserSchema,
              summary="Отправка кода и получения данных пользователя \
                  из Яндекс аккаунта",
              description="Код отправляется на ручку Яндекса \
@@ -29,11 +34,13 @@ async def get_yandex_oauth_url():
                 доступной информации о пользователе"
              )
 async def handle_code(
-    code: Code
+    code: Code,
+    session: AsyncSession = Depends(get_async_session)
 ):
-    service = Service()
+    service = Service(session)
     tokens: AuthTokens = await service.get_yandex_tokens(code)
     user_data: YandexUserData = await service.get_yandex_user_data(
         tokens.access_token
         )
-    return user_data
+    user: UserSchema = await service.authentication_user(user_data)
+    return user

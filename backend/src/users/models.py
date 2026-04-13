@@ -19,7 +19,7 @@ class Users(Base):
     first_name: Mapped[str] = mapped_column(String(50), nullable=False)
     last_name: Mapped[str] = mapped_column(String(50), nullable=False)
     is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
-    email: Mapped[Optional[str]]
+    email: Mapped[Optional[str]] = mapped_column(unique=True, index=True)
     additional_emails: Mapped[Optional[list[str]]] = mapped_column(
         ARRAY(String)
         )

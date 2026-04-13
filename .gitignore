@@ -4,4 +4,4 @@ __pycache__
 .vscode
 .venv
 .venv/
-docker-compose-dev.yml
+frontend

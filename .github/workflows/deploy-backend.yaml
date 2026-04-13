@@ -1,0 +1,53 @@
+name: Deploy Backend
+run-name: "Deploy Backend"
+
+on:
+  pull_request:
+    branches: ["dev"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Yandex Container Registry
+        run: |
+          echo ${{ secrets.Y_TOKEN }} | docker login \
+            --username oauth \
+            --password-stdin cr.yandex
+
+      - name: Build and push Docker image
+
+        run: |
+          docker build \
+            -t cr.yandex/${{ secrets.CONTAINER_REGISTRY }}/backend .
+
+          docker push cr.yandex/${{ secrets.CONTAINER_REGISTRY }}/backend
+
+      - name: Deploy to server
+
+        uses: appleboy/ssh-action@v1.0.0
+        env:
+          REGISTRY: cr.yandex/${{ secrets.CONTAINER_REGISTRY }}
+          DOMAIN: backend.termeet-dev.ru
+          EMAIL: ${{ secrets.HTTPS_EMAIL }}
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: REGISTRY,DOMAIN,EMAIL
+          script: |
+            echo "🚀 Деплой backend-а"
+
+            # Логинимся в registry
+            echo ${{ secrets.Y_TOKEN }} | docker login \
+              --username oauth \
+              --password-stdin cr.yandex
+
+            # Автоматически проверяет контейнеры на обновления
+            # В случае чего соответственно их перезапускает
+            docker compose up -d --pull always

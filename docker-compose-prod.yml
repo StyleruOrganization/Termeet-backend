@@ -1,46 +1,44 @@
-name: t_backend
+name: prod_backend
 
 networks:
   backend-net:
+  nginx-proxy:
+    external: true
 
 volumes:
-  postgres_data:
+  postgres-data:
 
 services:  
 
   backend:
-    build: .
-    container_name: backend
+    image: cr.yandex/${CONTAINER_REGISTRY}/backend-prod
+    container_name: backend-prod
     ports:
-      - 8000:8000
+      - 8001:8000
     command: |
       sh -c "alembic -c backend/alembic.ini upgrade head && \
-      uvicorn backend.src.main:app --host 0.0.0.0 --port 8000 --reload"
+      uvicorn backend.src.main:app --host 0.0.0.0 --port 8000"
     networks:
       - backend-net
+      - nginx-proxy
+    restart: "unless-stopped"
     depends_on:
       postgres:
         condition: service_healthy
-        restart: true
     env_file:
       - .env
-    develop:
-      watch:
-        - action: sync
-          path: backend
-          target: /code/backend
+
 
   postgres:
     image: postgres:17-alpine
-    container_name: postgres
+    container_name: postgres-prod
     env_file:
       - .env
-    ports:
-     - 5432:5432
     volumes:
-     - postgres_data:/var/lib/postgresql
+     - postgres-data:/var/lib/postgresql
     networks:
       - backend-net
+    restart: "unless-stopped"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s

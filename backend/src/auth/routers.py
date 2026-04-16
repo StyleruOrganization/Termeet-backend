@@ -1,12 +1,17 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import RedirectResponse
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.src.dependencies import get_async_session
 from backend.src.auth.schemas import (
-    Code, AuthTokens, YandexUserData, UserSchema
+    Code, AuthTokens, YandexUserData, UserSchema, TokenInfo
 )
 from backend.src.auth.services import Service
+from backend.src.auth.dependencies import (
+    get_current_active_user,
+    get_current_auth_user_for_refresh
+)
 
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -25,7 +30,6 @@ async def get_yandex_oauth_url():
 
 
 @router.post("/yandex/callback",
-             response_model=UserSchema,
              summary="Отправка кода и получения данных пользователя \
                  из Яндекс аккаунта",
              description="Код отправляется на ручку Яндекса \
@@ -43,4 +47,27 @@ async def handle_code(
         tokens.access_token
         )
     user: UserSchema = await service.authentication_user(user_data)
+    tokens: TokenInfo = await service.create_tokens(user)
+
+    return tokens
+
+
+@router.post(
+        "/refresh",
+        response_model=TokenInfo,
+        response_model_exclude_none=True
+)
+async def auth_refresh_jwt(
+    user: UserSchema = Depends(get_current_auth_user_for_refresh)
+):
+    service = Service()
+    tokens: TokenInfo = await service.create_tokens(user, only_access=True)
+
+    return tokens
+
+
+@router.get("/users/me")
+async def auth_user(
+    user: UserSchema = Depends(get_current_active_user)
+):
     return user

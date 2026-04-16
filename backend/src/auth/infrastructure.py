@@ -1,8 +1,12 @@
+from typing import TYPE_CHECKING
 from sqlalchemy import select
 
 from backend.src.auth.repositories import Repository
 from backend.src.users.models import Users
 from backend.src.auth.models import OAuthAccount
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 class Infrastructure(Repository):
@@ -31,5 +35,11 @@ class Infrastructure(Repository):
         query = select(Users, OAuthAccount).join(Users.oauth_accounts).where(
             OAuthAccount.provider_user_id == int(user["id"])
             )
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
+
+    async def check_user_in_db(self, id: UUID):
+        # Думаю, что можно сделать проверку быстрее, не доставая целый объект
+        query = select(Users).where(Users.id == id)
         result = await self.session.execute(query)
         return result.scalar_one_or_none()

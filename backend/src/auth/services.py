@@ -1,13 +1,23 @@
 from typing import TYPE_CHECKING
 from urllib import parse
+from datetime import timedelta
 
 import httpx
 
 from backend.src.auth.infrastructure import Infrastructure
 from backend.src.auth.schemas import (
-    Code, AuthTokens, YandexUserData, UserSchema
+    Code,
+    AuthTokens,
+    YandexUserData,
+    UserSchema,
+    TokenInfo,
 )
 from backend.src.config import config
+from backend.src.auth.utils import (
+    create_jwt_token,
+    ACCESS_TOKEN_TYPE,
+    REFRESH_TOKEN_TYPE
+)
 
 
 if TYPE_CHECKING:
@@ -82,3 +92,47 @@ class Service:
         user: Users = await self.repository.register_user(user_data)
         user: UserSchema = UserSchema.model_validate(user)
         return user
+
+    async def create_tokens(
+            self, user: UserSchema, only_access: bool = False
+    ):
+        access_token = await self.create_access_token(user)
+        refresh_token = None
+
+        if not only_access:
+            refresh_token = await self.create_refresh_token(user)
+
+        tokens = TokenInfo(
+            access_token=access_token,
+            refresh_token=refresh_token,
+        )
+        return tokens
+
+    async def create_access_token(self, user: UserSchema):
+        jwt_payload = {
+            "sub": str(user.id),
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+        }
+
+        access_token: str = await create_jwt_token(
+            token_type=ACCESS_TOKEN_TYPE,
+            token_data=jwt_payload,
+            expire_minutes=config.auth_jwt.ACCESS_TOKEN_EXPIRE_MINUTES,
+        )
+
+        return access_token
+
+    async def create_refresh_token(self, user: UserSchema):
+        jwt_payload = {"sub": str(user.id)}
+
+        refresh_token: str = await create_jwt_token(
+            token_type=REFRESH_TOKEN_TYPE,
+            token_data=jwt_payload,
+            expire_timedelta=timedelta(
+                days=config.auth_jwt.REFRESH_TOKEN_EXPIRE_DAYS
+            ),
+        )
+
+        return refresh_token

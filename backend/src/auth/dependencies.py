@@ -2,7 +2,7 @@ from uuid import UUID
 
 from jwt.exceptions import InvalidTokenError
 from starlette import status
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Cookie
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +11,8 @@ from backend.src.auth.utils import (
     decode_jwt,
     TOKEN_TYPE_FIELD,
     ACCESS_TOKEN_TYPE,
-    REFRESH_TOKEN_TYPE
+    REFRESH_TOKEN_TYPE,
+    REFRESH_TOKEN_COOKIE
 )
 from backend.src.dependencies import get_async_session
 from backend.src.auth.schemas import UserSchema
@@ -21,7 +22,7 @@ from backend.src.auth.schemas import UserSchema
 http_bearer = HTTPBearer()
 
 
-async def _get_current_token_payload(
+async def _get_current_access_token_payload(
         credentials: HTTPAuthorizationCredentials = Depends(http_bearer)
 ):
     token: str = credentials.credentials
@@ -37,8 +38,22 @@ async def _get_current_token_payload(
     return payload
 
 
+async def _get_current_refresh_token_payload(
+        refresh_token: str = Cookie(alias=REFRESH_TOKEN_COOKIE)
+) -> dict:
+    try:
+        payload = await decode_jwt(token=refresh_token)
+    except InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid token error"
+        )
+
+    return payload
+
+
 async def _get_current_auth_user(
-        payload: dict = Depends(_get_current_token_payload),
+        payload: dict = Depends(_get_current_access_token_payload),
         session: AsyncSession = Depends(get_async_session)
 ):
     token_type = payload.get(TOKEN_TYPE_FIELD)
@@ -62,7 +77,7 @@ async def _get_current_auth_user(
 
 
 async def get_current_auth_user_for_refresh(
-        payload: dict = Depends(_get_current_token_payload),
+        payload: dict = Depends(_get_current_refresh_token_payload),
         session: AsyncSession = Depends(get_async_session)
 ):
     token_type = payload.get(TOKEN_TYPE_FIELD)

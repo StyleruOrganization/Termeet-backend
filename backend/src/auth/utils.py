@@ -8,6 +8,8 @@ ACCESS_TOKEN_TYPE = "access"
 REFRESH_TOKEN_TYPE = "refresh"
 TOKEN_TYPE_FIELD = "type"
 
+REFRESH_TOKEN_COOKIE = "refresh_token"
+
 
 async def create_jwt_token(
     token_type: str,

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from fastapi.responses import RedirectResponse
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,9 @@ from backend.src.auth.services import Service
 from backend.src.auth.dependencies import (
     get_current_active_user,
     get_current_auth_user_for_refresh
+)
+from backend.src.auth.utils import (
+    REFRESH_TOKEN_COOKIE
 )
 
 
@@ -38,6 +41,7 @@ async def get_yandex_oauth_url():
                 доступной информации о пользователе"
              )
 async def handle_code(
+    response: Response,
     code: Code,
     session: AsyncSession = Depends(get_async_session)
 ):
@@ -49,7 +53,14 @@ async def handle_code(
     user: UserSchema = await service.authentication_user(user_data)
     tokens: TokenInfo = await service.create_tokens(user)
 
-    return tokens
+    response.set_cookie(
+        key=REFRESH_TOKEN_COOKIE,
+        value=tokens.refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="lax"
+    )
+    return tokens.access_token
 
 
 @router.post(
@@ -58,7 +69,7 @@ async def handle_code(
         response_model_exclude_none=True
 )
 async def auth_refresh_jwt(
-    user: UserSchema = Depends(get_current_auth_user_for_refresh)
+    user: UserSchema = Depends(get_current_auth_user_for_refresh),
 ):
     service = Service()
     tokens: TokenInfo = await service.create_tokens(user, only_access=True)

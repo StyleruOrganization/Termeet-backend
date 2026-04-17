@@ -10,7 +10,7 @@ volumes:
 
 services:  
 
-  backend:
+  backend-prod:
     image: cr.yandex/${CONTAINER_REGISTRY}/backend-prod
     container_name: backend-prod
     ports:

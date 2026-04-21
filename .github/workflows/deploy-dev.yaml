@@ -1,10 +1,10 @@
-name: Deploy Backend
-run-name: "Deploy Backend"
+name: Deploy Dev Backend
+run-name: "Deploy Dev Backend"
 
 on:
-  pull_request:
+  push:
     branches: ["dev"]
-  workflow_dispatch:
+
 
 jobs:
   deploy:
@@ -23,10 +23,10 @@ jobs:
       - name: Build and push Docker image
 
         run: |
-          docker build \
-            -t cr.yandex/${{ secrets.CONTAINER_REGISTRY }}/backend .
+          docker build -f Dockerfile.dev \
+            -t cr.yandex/${{ secrets.CONTAINER_REGISTRY }}/backend-dev .
 
-          docker push cr.yandex/${{ secrets.CONTAINER_REGISTRY }}/backend
+          docker push cr.yandex/${{ secrets.CONTAINER_REGISTRY }}/backend-dev
 
       - name: Deploy to server
 
@@ -42,6 +42,7 @@ jobs:
           envs: REGISTRY,DOMAIN,EMAIL
           script: |
             echo "🚀 Деплой backend-а"
+            cd backend-dev
 
             # Логинимся в registry
             echo ${{ secrets.Y_TOKEN }} | docker login \

@@ -12,7 +12,6 @@ from backend.src.auth.schemas import (
     AuthTokens,
     YandexUserData,
     UserSchema,
-    TokenInfo,
 )
 from backend.src.config import config
 from backend.src.auth.utils import (
@@ -65,9 +64,8 @@ class Service:
         if "access_token" not in tokens:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="invalid yandex code"
+                detail="Exception from yandex: invalid yandex code"
             )
-        # Сделать обработку еще у меня такую же
 
         tokens = AuthTokens(**tokens)
 
@@ -111,11 +109,7 @@ class Service:
         if not only_access:
             refresh_token = await self.create_refresh_token(user)
 
-        tokens = TokenInfo(
-            access_token=access_token,
-            refresh_token=refresh_token,
-        )
-        return tokens
+        return access_token, refresh_token
 
     async def create_access_token(self, user: UserSchema):
         jwt_payload = {

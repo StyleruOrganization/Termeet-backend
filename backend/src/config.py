@@ -51,10 +51,15 @@ class AuthJWTconfig(ConfigBase):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
 
+class CookiesConfig(ConfigBase):
+    HTTPS_TRUE: bool
+
+
 class Config(BaseSettings):
     prod_db: ProdDatabaseConfig = Field(default_factory=ProdDatabaseConfig)
     yandex_auth: YandexAuthConfig = Field(default_factory=YandexAuthConfig)
     auth_jwt: AuthJWTconfig = Field(default_factory=AuthJWTconfig)
+    cookies: CookiesConfig = Field(default_factory=CookiesConfig)
 
     @classmethod
     def load(cls) -> "Config":

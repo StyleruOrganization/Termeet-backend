@@ -32,7 +32,7 @@ async def _get_current_access_token_payload(
     except InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid token error"
+            detail="invalid token error (access token is expired)"
         )
 
     return payload
@@ -46,26 +46,25 @@ async def _get_current_refresh_token_payload(
     except InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid token error"
+            detail="invalid token error (refresh token is expired)"
         )
 
     return payload
 
 
-async def _get_current_auth_user(
-        payload: dict = Depends(_get_current_access_token_payload),
-        session: AsyncSession = Depends(get_async_session)
-):
-    token_type = payload.get(TOKEN_TYPE_FIELD)
-    if token_type != ACCESS_TOKEN_TYPE:
+async def validate_token_type(payload: dict, token_type: str):
+    current_token_type = payload.get(TOKEN_TYPE_FIELD)
+    if current_token_type != token_type:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid token type"
         )
-    user_id: UUID | None = UUID(payload.get("sub"))
-    # От сюда можно доставать и другое, чтобы не доставать это из БД
-    repository = Infrastructure(session)
 
+
+async def get_user_by_token_sub(payload: dict, session: AsyncSession):
+    user_id: UUID | None = UUID(payload.get("sub"))
+
+    repository = Infrastructure(session)
     if user := (await repository.check_user_in_db(user_id)):
         user: UserSchema = UserSchema.model_validate(user)
         return user
@@ -76,32 +75,35 @@ async def _get_current_auth_user(
     )
 
 
-async def get_current_auth_user_for_refresh(
-        payload: dict = Depends(_get_current_refresh_token_payload),
-        session: AsyncSession = Depends(get_async_session)
-):
-    token_type = payload.get(TOKEN_TYPE_FIELD)
-    if token_type != REFRESH_TOKEN_TYPE:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid token type"
-        )
-    user_id: UUID | None = UUID(payload.get("sub"))
-    # От сюда можно доставать и другое, чтобы не доставать это из БД
-    repository = Infrastructure(session)
+# Фабрика зависимостей😎
+def get_auth_user_from_token_of_type(token_type: str):
+    if token_type == ACCESS_TOKEN_TYPE:
+        current_function_of_token_payload = _get_current_access_token_payload
+    else:
+        current_function_of_token_payload = _get_current_refresh_token_payload
 
-    if user := (await repository.check_user_in_db(user_id)):
-        user: UserSchema = UserSchema.model_validate(user)
-        return user
+    async def get_auth_user_from_token(
+            payload: dict = Depends(current_function_of_token_payload),
+            session: AsyncSession = Depends(get_async_session)
+    ):
+        await validate_token_type(payload, token_type)
+        return await get_user_by_token_sub(payload, session)
 
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="token invalid (user not found)"
-    )
+    return get_auth_user_from_token
+
+
+_get_current_auth_user_from_access = get_auth_user_from_token_of_type(
+    ACCESS_TOKEN_TYPE
+)
+
+
+get_current_auth_user_from_refresh = get_auth_user_from_token_of_type(
+    REFRESH_TOKEN_TYPE
+)
 
 
 async def get_current_active_user(
-        user: UserSchema = Depends(_get_current_auth_user)
+        user: UserSchema = Depends(_get_current_auth_user_from_access)
 ):
     if user.is_active:
         return user

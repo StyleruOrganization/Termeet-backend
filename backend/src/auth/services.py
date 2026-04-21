@@ -3,6 +3,8 @@ from urllib import parse
 from datetime import timedelta
 
 import httpx
+from fastapi import HTTPException
+from starlette import status
 
 from backend.src.auth.infrastructure import Infrastructure
 from backend.src.auth.schemas import (
@@ -59,6 +61,13 @@ class Service:
             )
 
             tokens = response.json()
+
+        if "access_token" not in tokens:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="invalid yandex code"
+            )
+        # Сделать обработку еще у меня такую же
 
         tokens = AuthTokens(**tokens)
 

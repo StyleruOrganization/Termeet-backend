@@ -14,14 +14,18 @@ app = FastAPI(
 )
 
 origins = [
-    "*"
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://termeet.tech",
+    "https://termeet-dev.ru",
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"]
+    allow_headers=["*"],
 )
 
 app.include_router(meetings_router)

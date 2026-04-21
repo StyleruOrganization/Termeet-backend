@@ -15,6 +15,7 @@ from backend.src.auth.dependencies import (
 from backend.src.auth.utils import (
     REFRESH_TOKEN_COOKIE
 )
+from backend.src.config import config
 
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -33,12 +34,15 @@ async def get_yandex_oauth_url():
 
 
 @router.post("/yandex/callback",
-             summary="Отправка кода и получения данных пользователя \
-                 из Яндекс аккаунта",
+             summary="Отправка кода, получения данных пользователя, \
+                 выдача токенов",
              description="Код отправляется на ручку Яндекса \
                 для получения токенов, после уже access токен \
                 отправляется на ручку Яндекса, для получения  \
-                доступной информации о пользователе"
+                доступной информации о пользователе, дальше идет \
+                запись в БД, выдача токенов, которые отсылаются \
+                в куках (refresh) и в Authorization: Bearer (access)",
+             response_model=TokenInfo
              )
 async def handle_code(
     response: Response,
@@ -46,35 +50,47 @@ async def handle_code(
     session: AsyncSession = Depends(get_async_session)
 ):
     service = Service(session)
+
     tokens: AuthTokens = await service.get_yandex_tokens(code)
     user_data: YandexUserData = await service.get_yandex_user_data(
         tokens.access_token
         )
+
     user: UserSchema = await service.authentication_user(user_data)
-    tokens: TokenInfo = await service.create_tokens(user)
+    access_token, refresh_token = await service.create_tokens(user)
 
     response.set_cookie(
         key=REFRESH_TOKEN_COOKIE,
-        value=tokens.refresh_token,
+        value=refresh_token,
+        path="/",
         httponly=True,
-        secure=True,
+        secure=config.cookies.HTTPS_TRUE,
         samesite="lax"
     )
-    return tokens.access_token
+
+    return TokenInfo(
+        access_token=access_token
+    )
 
 
 @router.post(
-        "/refresh",
-        response_model=TokenInfo,
-        response_model_exclude_none=True
+        "/yandex/refresh",
+        summary="Обновить access токен",
+        description="Обновляется access токен по refresh-у",
+        response_model=TokenInfo
 )
 async def auth_refresh_jwt(
     user: UserSchema = Depends(get_current_auth_user_for_refresh),
 ):
     service = Service()
-    tokens: TokenInfo = await service.create_tokens(user, only_access=True)
 
-    return tokens
+    access_token, _ = await service.create_tokens(
+        user, only_access=True
+    )
+
+    return TokenInfo(
+        access_token=access_token
+    )
 
 
 @router.get("/users/me")

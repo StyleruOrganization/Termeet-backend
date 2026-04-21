@@ -38,3 +38,6 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 # САМОЕ ВАЖНОЕ: Сами тесты тоже должны использовать сессионный цикл
 asyncio_default_test_loop_scope = "session"
+
+[tool.black]
+line-length = 79

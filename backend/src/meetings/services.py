@@ -17,7 +17,8 @@ class Service:
 
         slots = [
             SlotsUser(name=key, slots=value)
-            for slot in orm_meeting.slots for key, value in slot.items()
+            for slot in orm_meeting.slots
+            for key, value in slot.items()
         ]
 
         pydantic_meeting = MeetResponse(
@@ -27,7 +28,7 @@ class Service:
             duration=orm_meeting.duration,
             dataRange=orm_meeting.data_range,
             hash=orm_meeting.id,
-            slots=slots
+            slots=slots,
         )
 
         return pydantic_meeting
@@ -39,13 +40,14 @@ class Service:
         return pydantic_meeting
 
     async def edit_meeting(
-            self, hash: UUID, meeting: MeetCreate
-            ) -> MeetResponse:
+        self, hash: UUID, meeting: MeetCreate
+    ) -> MeetResponse:
         dict_meeting = meeting.model_dump()
         orm_meeting = await self.repository.edit_meeting(hash, dict_meeting)
         slots = [
             SlotsUser(name=key, slots=value)
-            for slot in orm_meeting.slots for key, value in slot.items()
+            for slot in orm_meeting.slots
+            for key, value in slot.items()
         ]
 
         pydantic_meeting = MeetResponse(
@@ -55,7 +57,7 @@ class Service:
             duration=orm_meeting.duration,
             dataRange=orm_meeting.data_range,
             hash=orm_meeting.id,
-            slots=slots
+            slots=slots,
         )
 
         return pydantic_meeting

@@ -15,10 +15,7 @@ class Meet(BaseModel):
     duration: str | None = None
     dataRange: list[list[str]] = Field(validation_alias="data_range")
 
-    model_config = ConfigDict(
-        from_attributes=True,
-        populate_by_name=True
-        )
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class MeetCreate(Meet):

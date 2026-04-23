@@ -29,8 +29,8 @@ class Infrastructure(Repository):
             Meetings.duration,
             Meetings.data_range,
             Meetings.slots,
-            Meetings.emails
-            ).where(Meetings.id == id)
+            Meetings.emails,
+        ).where(Meetings.id == id)
 
         result: Result = await self.session.execute(query)
 
@@ -48,18 +48,16 @@ class Infrastructure(Repository):
             link=meeting["link"],
             duration=meeting["duration"],
             data_range=meeting["dataRange"],
-            slots=[]
+            slots=[],
         )
         self.session.add(object)
         await self.session.flush()
         return object
 
     async def edit_meeting(
-            self, id: UUID, meeting: dict
-            ) -> Optional[Meetings]:
-        query: Select = select(
-            Meetings
-            ).where(Meetings.id == id)
+        self, id: UUID, meeting: dict
+    ) -> Optional[Meetings]:
+        query: Select = select(Meetings).where(Meetings.id == id)
 
         result: Result = await self.session.execute(query)
 
@@ -79,9 +77,7 @@ class Infrastructure(Repository):
         return record
 
     async def add_slots(self, id: UUID, name: str, slots: list):
-        query: Select = select(
-            Meetings
-            ).where(Meetings.id == id)
+        query: Select = select(Meetings).where(Meetings.id == id)
 
         result: Result = await self.session.execute(query)
 
@@ -91,9 +87,7 @@ class Infrastructure(Repository):
         if not record:
             raise HTTPException(status_code=404, detail="Meeting not found")
 
-        current_slots = (
-            record.slots.copy() if record.slots else []
-        )
+        current_slots = record.slots.copy() if record.slots else []
 
         # Можно сделать чтобы и в БД по умолчанию пустой список
         current_slots.append({name: slots})

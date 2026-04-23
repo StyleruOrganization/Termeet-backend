@@ -27,7 +27,7 @@ class Meetings(Base):
             f"DATA_RANGE {self.data_range} "
             f"SLOTS {self.slots} "
             f"EMAILS {self.emails}>"
-            )
+        )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -52,16 +52,13 @@ class Meetings(Base):
     )
 
     participants: Mapped[Optional[list["Users"]]] = relationship(
-        back_populates="meetings_participant",
-        secondary="meetings_users"
+        back_populates="meetings_participant", secondary="meetings_users"
     )
 
     team_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("teams.id"), nullable=True
     )
-    team: Mapped[Optional["Teams"]] = relationship(
-        back_populates="meetings"
-        )
+    team: Mapped[Optional["Teams"]] = relationship(back_populates="meetings")
 
 
 class MeetingsUsers(Base):

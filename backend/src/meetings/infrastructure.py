@@ -51,7 +51,7 @@ class Infrastructure(Repository):
             slots=[]
         )
         self.session.add(object)
-        await self.session.commit()  # Разберись потом, зачем он нужен
+        await self.session.flush()
         return object
 
     async def edit_meeting(
@@ -74,7 +74,7 @@ class Infrastructure(Repository):
         record.duration = meeting["duration"]
         record.data_range = meeting["dataRange"]
 
-        await self.session.commit()
+        await self.session.flush()
 
         return record
 
@@ -100,4 +100,4 @@ class Infrastructure(Repository):
 
         record.slots = current_slots
 
-        await self.session.commit()
+        await self.session.flush()

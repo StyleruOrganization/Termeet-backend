@@ -7,7 +7,9 @@ from sqlalchemy import String, ARRAY
 from backend.src.models import Base
 
 if TYPE_CHECKING:
-    from backend.src.meetings.models import Meetings, Teams
+    from backend.src.meetings.models import Meetings
+    from backend.src.teams.models import Teams
+    from backend.src.auth.models import OAuthAccount
 
 
 class Users(Base):
@@ -16,10 +18,15 @@ class Users(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     first_name: Mapped[str] = mapped_column(String(50), nullable=False)
     last_name: Mapped[str] = mapped_column(String(50), nullable=False)
-    email: Mapped[Optional[str]]
-    additional_email: Mapped[Optional[list[str]]] = mapped_column(
+    is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
+    email: Mapped[Optional[str]] = mapped_column(unique=True, index=True)
+    additional_emails: Mapped[Optional[list[str]]] = mapped_column(
         ARRAY(String)
         )
+
+    oauth_accounts: Mapped[Optional[list["OAuthAccount"]]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
     meetings_owner: Mapped[Optional[list["Meetings"]]] = relationship(
         back_populates="owner"

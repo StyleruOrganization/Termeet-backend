@@ -1,5 +1,9 @@
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BASE_DIR = Path(__file__).parent.parent
 
 
 class ConfigBase(BaseSettings):
@@ -33,8 +37,29 @@ class ProdDatabaseConfig(DatabaseConfig):
                 f"{self.HOST}:{self.PORT}/{self.DB}")
 
 
+class YandexAuthConfig(ConfigBase):
+    CLIENT_ID: str
+    CLIENT_SECRET: str
+    REDIRECT_URI: str
+
+
+class AuthJWTconfig(ConfigBase):
+    PUBLIC_KEY_PATH: Path = BASE_DIR / "certs" / "jwt-public.pem"
+    PRIVATE_KEY_PATH: Path = BASE_DIR / "certs" / "jwt-private.pem"
+    ALGORITHM: str = "RS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+
+
+class CookiesConfig(ConfigBase):
+    HTTPS_TRUE: bool
+
+
 class Config(BaseSettings):
     prod_db: ProdDatabaseConfig = Field(default_factory=ProdDatabaseConfig)
+    yandex_auth: YandexAuthConfig = Field(default_factory=YandexAuthConfig)
+    auth_jwt: AuthJWTconfig = Field(default_factory=AuthJWTconfig)
+    cookies: CookiesConfig = Field(default_factory=CookiesConfig)
 
     @classmethod
     def load(cls) -> "Config":

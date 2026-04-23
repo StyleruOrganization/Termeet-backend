@@ -1,7 +1,9 @@
-name: local_backend
+name: dev_backend
 
 networks:
   backend-net:
+  nginx-proxy:
+    external: true
 
 volumes:
   postgres_data:
@@ -9,47 +11,33 @@ volumes:
 services:  
 
   backend:
-    build: .
-    container_name: backend-local
-    ports:
-      - 8000:8000
+    image: cr.yandex/${CONTAINER_REGISTRY}/backend-dev
+    container_name: backend-dev
     command: |
       sh -c "alembic -c backend/alembic.ini upgrade head && \
       uvicorn backend.src.main:app --host 0.0.0.0 --port 8000 --reload"
-    volumes:
-      - ./backend/migrations/:/code/backend/migrations/
-      - ./backend/docs/openapi.yaml:/code/backend/docs/openapi.yaml
     networks:
       - backend-net
+      - nginx-proxy
+    restart: "unless-stopped"
     depends_on:
       postgres:
         condition: service_healthy
         restart: true
     env_file:
       - .env
-    develop:
-      watch:
-        - action: sync
-          path: backend
-          target: /code/backend
-          ignore:
-          - migrations/
-          - docs/openapi.yaml
-        - action: rebuild
-          path: .env
-          target: /code/.env
+
 
   postgres:
     image: postgres:17-alpine
-    container_name: postgres-local
+    container_name: postgres-dev
     env_file:
       - .env
-    ports:
-     - 5432:5432
     volumes:
-     - postgres_data:/var/lib/postgresql
+     - postgres_data:/var/lib/postgresql/data
     networks:
       - backend-net
+    restart: "unless-stopped"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s

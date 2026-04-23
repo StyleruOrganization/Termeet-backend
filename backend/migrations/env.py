@@ -8,9 +8,10 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from backend.src.database import DATABASE_URL
 from backend.src.models import Base
-from backend.src.meetings.models import Meetings
-from backend.src.teams.models import Teams
-from backend.src.users.models import Users
+from backend.src.meetings.models import Meetings  # noqa
+from backend.src.teams.models import Teams  # noqa
+from backend.src.users.models import Users  # noqa
+from backend.src.auth.models import OAuthAccount  # noqa
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -16,6 +16,8 @@ services:
     command: |
       sh -c "alembic -c backend/alembic.ini upgrade head && \
       uvicorn backend.src.main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - ./certs/:/code/backend/certs/
     networks:
       - backend-net
       - nginx-proxy

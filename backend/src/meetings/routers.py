@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.src.dependencies import get_async_session
+from backend.src.auth.dependencies import get_current_active_user
+from backend.src.users.schemas import UserSchema
 from .schemas import MeetCreate, MeetResponse, SlotsUser
 from .services import Service
 
@@ -25,6 +27,9 @@ async def get_meeting(
     return await service.get_meeting(hash)
 
 
+# Здесь получается, если создатель не авторизован, то соответственно,
+# он не может редактировать поля встречи потом (думаю, что это нужно указать
+# при нажатии кнопки "сохранить")
 @router.post(
     "/create",
     response_model=MeetResponse,
@@ -34,25 +39,30 @@ async def get_meeting(
     status_code=201,
 )
 async def create_meeting(
-    meeting: MeetCreate, session: AsyncSession = Depends(get_async_session)
+    meeting: MeetCreate,
+    session: AsyncSession = Depends(get_async_session),
+    user: UserSchema | None = Depends(get_current_active_user)
 ) -> MeetResponse:
     service = Service(session)
-    return await service.create_meeting(meeting)
+    return await service.create_meeting(meeting, user)
 
 
+# Это только для зарегистрированных пользователей
 @router.patch(
     "/{hash}",
     response_model=MeetResponse,
     summary="Редактировать встречи",
-    description="Отправляет полное описание встречи, то есть измененные и не измененные поля",
+    description="Отправляет полное описание встречи, \
+        то есть измененные и не измененные",
 )
 async def edit_meeting(
     hash: UUID,
     meeting: MeetCreate,
     session: AsyncSession = Depends(get_async_session),
+    user: UserSchema | None = Depends(get_current_active_user),
 ):
     service = Service(session)
-    return await service.edit_meeting(hash, meeting)
+    return await service.edit_meeting(hash, meeting, user)
 
 
 @router.patch(

@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from backend.src.users.schemas import UserSchema
 from .infrastructure import Infrastructure
 from .schemas import MeetResponse, MeetCreate, SlotsUser
 
@@ -33,17 +34,21 @@ class Service:
 
         return pydantic_meeting
 
-    async def create_meeting(self, meeting: MeetCreate) -> MeetResponse:
+    async def create_meeting(
+        self, meeting: MeetCreate, user: UserSchema | None
+    ) -> MeetResponse:
         dict_meeting = meeting.model_dump()
-        orm_meeting = await self.repository.create_meeting(dict_meeting)
+        orm_meeting = await self.repository.create_meeting(dict_meeting, user)
         pydantic_meeting = MeetResponse.model_validate(orm_meeting)
         return pydantic_meeting
 
     async def edit_meeting(
-        self, hash: UUID, meeting: MeetCreate
+        self, hash: UUID, meeting: MeetCreate, user: UserSchema | None
     ) -> MeetResponse:
         dict_meeting = meeting.model_dump()
-        orm_meeting = await self.repository.edit_meeting(hash, dict_meeting)
+        orm_meeting = await self.repository.edit_meeting(
+            hash, dict_meeting, user
+        )
         slots = [
             SlotsUser(name=key, slots=value)
             for slot in orm_meeting.slots

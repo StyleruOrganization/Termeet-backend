@@ -3,9 +3,15 @@ from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import select
 from fastapi import HTTPException
+from starlette.status import (
+    HTTP_404_NOT_FOUND,
+    HTTP_403_FORBIDDEN,
+    HTTP_401_UNAUTHORIZED,
+)
 
-from .repositories import Repository
-from .models import Meetings
+from backend.src.meetings.repositories import Repository
+from backend.src.meetings.models import Meetings
+from backend.src.users.schemas import UserSchema
 from backend.src.users.models import Users  # noqa:
 from backend.src.teams.models import Teams  # noqa:
 
@@ -37,12 +43,17 @@ class Infrastructure(Repository):
         record: Optional[Meetings] = result.one_or_none()
 
         if not record:
-            raise HTTPException(status_code=404, detail="Meeting not found")
+            raise HTTPException(
+                status_code=HTTP_404_NOT_FOUND, detail="Meeting not found"
+            )
 
         return record
 
-    async def create_meeting(self, meeting: dict) -> Optional[Meetings]:
-        object = Meetings(
+    async def create_meeting(
+        self, meeting: dict, user: UserSchema | None
+    ) -> Optional[Meetings]:
+
+        object: Meetings = Meetings(
             name=meeting["name"],
             description=meeting["description"],
             link=meeting["link"],
@@ -50,21 +61,38 @@ class Infrastructure(Repository):
             data_range=meeting["dataRange"],
             slots=[],
         )
+
+        if user:
+            user: Users = await self.session.get(Users, user.id)
+            object.owner = user
+
         self.session.add(object)
         await self.session.flush()
         return object
 
     async def edit_meeting(
-        self, id: UUID, meeting: dict
+        self, id: UUID, meeting: dict, user: UserSchema | None
     ) -> Optional[Meetings]:
-        query: Select = select(Meetings).where(Meetings.id == id)
 
-        result: Result = await self.session.execute(query)
-
-        record: Optional[Meetings] = result.scalar_one_or_none()
+        record: Meetings | None = await self.session.get(Meetings, id)
 
         if not record:
-            raise HTTPException(status_code=404, detail="Meeting not found")
+            raise HTTPException(
+                status_code=HTTP_404_NOT_FOUND, detail="Meeting not found"
+            )
+
+        if not user:
+            raise HTTPException(
+                status_code=HTTP_401_UNAUTHORIZED,
+                detail="You must be authenticated to edit this meeting",
+            )
+
+        # ПРОВЕРИТЬ В БУДУЩЕМ
+        if record.owner_id != user.id:
+            raise HTTPException(
+                status_code=HTTP_403_FORBIDDEN,
+                detail="You are not the owner of this meeting",
+            )
 
         record.name = meeting["name"]
         record.description = meeting["description"]
@@ -85,7 +113,9 @@ class Infrastructure(Repository):
         record: Optional[Meetings] = result.scalar_one_or_none()
 
         if not record:
-            raise HTTPException(status_code=404, detail="Meeting not found")
+            raise HTTPException(
+                status_code=HTTP_404_NOT_FOUND, detail="Meeting not found"
+            )
 
         current_slots = record.slots.copy() if record.slots else []
 

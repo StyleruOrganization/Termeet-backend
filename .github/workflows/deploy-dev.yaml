@@ -51,4 +51,4 @@ jobs:
 
             # Автоматически проверяет контейнеры на обновления
             # В случае чего соответственно их перезапускает
-            docker compose up -d --pull always
+            docker compose -f docker-compose-dev.yml up -d --pull always

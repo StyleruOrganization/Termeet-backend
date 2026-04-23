@@ -4,11 +4,11 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.src.dependencies import get_async_session
+from backend.src.users.schemas import UserSchema
 from backend.src.auth.schemas import (
     Code,
     AuthTokens,
     YandexUserData,
-    UserSchema,
     TokenInfo,
 )
 from backend.src.auth.services import Service
@@ -27,7 +27,7 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
     "/yandex/url",
     summary="Перенаправить на страницу авторизации Яндекса",
     description="Получает специальный код через редирект на  \
-                фронтенд, с помощью которого потом можно получитьв \
+                фронтенд, с помощью которого потом можно получить в \
                 access и refresh токены от Яндекса",
 )
 async def get_yandex_oauth_url():

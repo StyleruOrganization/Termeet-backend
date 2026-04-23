@@ -6,12 +6,12 @@ import httpx
 from fastapi import HTTPException
 from starlette import status
 
+from backend.src.users.schemas import UserSchema
 from backend.src.auth.infrastructure import Infrastructure
 from backend.src.auth.schemas import (
     Code,
     AuthTokens,
     YandexUserData,
-    UserSchema,
 )
 from backend.src.config import config
 from backend.src.auth.utils import (

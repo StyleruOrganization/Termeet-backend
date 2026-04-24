@@ -2,6 +2,7 @@ from uuid import UUID
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from fastapi import HTTPException
 from starlette.status import (
     HTTP_404_NOT_FOUND,
@@ -16,7 +17,7 @@ from backend.src.users.models import Users  # noqa:
 from backend.src.teams.models import Teams  # noqa:
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.ext.asyncio import AsyncSession, AsyncResult
     from sqlalchemy import Select
     from sqlalchemy.engine import Result
 
@@ -109,37 +110,48 @@ class Infrastructure(Repository):
     async def add_slots(
         self, id: UUID, name: str, slots: list, user: UserSchema | None
     ):
-        record: Meetings | None = await self.session.get(Meetings, id)
+        query: Select = select(Meetings).options(selectinload(Meetings.participants)).where(Meetings.id == id)
 
-        if not record:
+        result: AsyncResult = await self.session.execute(query)
+
+        meeting: Meetings = result.scalar_one_or_none()
+
+        if not meeting:
             raise HTTPException(
                 status_code=HTTP_404_NOT_FOUND, detail="Meeting not found"
             )
 
         if user:
             if user := await self.session.get(Users, user.id):
-                record.participants.append(user)  # Здесь проблемы с асинхронностью - решить!
+                if user in meeting.participants:
+                    raise HTTPException(
+                        status_code=HTTP_403_FORBIDDEN,
+                        detail="You have already added slots for this meeting",
+                    )
+                meeting.participants.append(user)
             else:
                 raise HTTPException(
                     status_code=HTTP_404_NOT_FOUND, detail="User not found"
                 )
 
-        current_slots = record.slots.copy() if record.slots else []
-        
-        # Теперь же в слоты будем доавблять id пользователя, который выбрал эти слоты
-        current_slots.append({name: slots, "user_id": user.id if user else None})
+        current_slots = meeting.slots.copy() if meeting.slots else []
 
-        record.slots = current_slots
+        # Теперь же в слоты будем добвавлять id пользователя, который выбрал эти слоты
+        current_slots.append({name: slots, "user_id": str(user.id) if user else None})
 
-        self.session.add(record)
+        meeting.slots = current_slots
+
+        self.session.add(meeting)
         await self.session.flush()
 
     async def edit_slots(
         self, id: UUID, name: str, slots: list, user: UserSchema | None
     ):
-        record: Meetings | None = await self.session.get(Meetings, id)
+        query: Select = select(Meetings).options(selectinload(Meetings.participants)).where(Meetings.id == id)
+        result: AsyncResult = await self.session.execute(query)
+        meeting: Meetings = result.scalar_one_or_none()
 
-        if not record:
+        if not meeting:
             raise HTTPException(
                 status_code=HTTP_404_NOT_FOUND, detail="Meeting not found"
             )
@@ -150,7 +162,7 @@ class Infrastructure(Repository):
                 detail="You must be authenticated to edit slots of this meeting",
             )
         elif user := (await self.session.get(Users, user.id)):
-                if user not in record.participants:
+                if user not in meeting.participants:
                     raise HTTPException(
                         status_code=HTTP_403_FORBIDDEN,
                         detail="You are not a participant of this meeting",
@@ -160,11 +172,11 @@ class Infrastructure(Repository):
                 status_code=HTTP_404_NOT_FOUND, detail="User not found"
             )
 
-        current_slots = record.slots.copy() if record.slots else []
+        current_slots = meeting.slots.copy() if meeting.slots else []
 
         for slot in current_slots:
-            if slot.get("user_id") == user.id:
-                slot = {name: slots, "user_id": user.id}
+            if UUID(slot.get("user_id")) == user.id:
+                current_slots.remove(slot)
                 break
         else:
             raise HTTPException(
@@ -172,6 +184,9 @@ class Infrastructure(Repository):
                 detail="Slots for this user not found in this meeting",
             )
 
-        record.slots = current_slots
+        current_slots.append({name: slots, "user_id": str(user.id)})
 
+        meeting.slots = current_slots
+
+        self.session.add(meeting)
         await self.session.flush()

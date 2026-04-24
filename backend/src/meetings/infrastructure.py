@@ -63,8 +63,12 @@ class Infrastructure(Repository):
         )
 
         if user:
-            user: Users = await self.session.get(Users, user.id)
-            object.owner = user
+            if user := await self.session.get(Users, user.id):
+                object.owner = user
+            else:
+                raise HTTPException(
+                    status_code=HTTP_404_NOT_FOUND, detail="User not found"
+                )       
 
         self.session.add(object)
         await self.session.flush()
@@ -87,7 +91,6 @@ class Infrastructure(Repository):
                 detail="You must be authenticated to edit this meeting",
             )
 
-        # ПРОВЕРИТЬ В БУДУЩЕМ
         if record.owner_id != user.id:
             raise HTTPException(
                 status_code=HTTP_403_FORBIDDEN,
@@ -101,26 +104,73 @@ class Infrastructure(Repository):
         record.data_range = meeting["dataRange"]
 
         await self.session.flush()
-
         return record
 
-    async def add_slots(self, id: UUID, name: str, slots: list):
-        query: Select = select(Meetings).where(Meetings.id == id)
-
-        result: Result = await self.session.execute(query)
-
-        # Список из словарей
-        record: Optional[Meetings] = result.scalar_one_or_none()
+    async def add_slots(
+        self, id: UUID, name: str, slots: list, user: UserSchema | None
+    ):
+        record: Meetings | None = await self.session.get(Meetings, id)
 
         if not record:
             raise HTTPException(
                 status_code=HTTP_404_NOT_FOUND, detail="Meeting not found"
             )
 
+        if user:
+            if user := await self.session.get(Users, user.id):
+                record.participants.append(user)  # Здесь проблемы с асинхронностью - решить!
+            else:
+                raise HTTPException(
+                    status_code=HTTP_404_NOT_FOUND, detail="User not found"
+                )
+
+        current_slots = record.slots.copy() if record.slots else []
+        
+        # Теперь же в слоты будем доавблять id пользователя, который выбрал эти слоты
+        current_slots.append({name: slots, "user_id": user.id if user else None})
+
+        record.slots = current_slots
+
+        self.session.add(record)
+        await self.session.flush()
+
+    async def edit_slots(
+        self, id: UUID, name: str, slots: list, user: UserSchema | None
+    ):
+        record: Meetings | None = await self.session.get(Meetings, id)
+
+        if not record:
+            raise HTTPException(
+                status_code=HTTP_404_NOT_FOUND, detail="Meeting not found"
+            )
+
+        if not user:
+            raise HTTPException(
+                status_code=HTTP_401_UNAUTHORIZED,
+                detail="You must be authenticated to edit slots of this meeting",
+            )
+        elif user := (await self.session.get(Users, user.id)):
+                if user not in record.participants:
+                    raise HTTPException(
+                        status_code=HTTP_403_FORBIDDEN,
+                        detail="You are not a participant of this meeting",
+                    )
+        else:
+            raise HTTPException(
+                status_code=HTTP_404_NOT_FOUND, detail="User not found"
+            )
+
         current_slots = record.slots.copy() if record.slots else []
 
-        # Можно сделать чтобы и в БД по умолчанию пустой список
-        current_slots.append({name: slots})
+        for slot in current_slots:
+            if slot.get("user_id") == user.id:
+                slot = {name: slots, "user_id": user.id}
+                break
+        else:
+            raise HTTPException(
+                status_code=HTTP_404_NOT_FOUND,
+                detail="Slots for this user not found in this meeting",
+            )
 
         record.slots = current_slots
 

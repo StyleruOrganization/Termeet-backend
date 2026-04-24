@@ -51,7 +51,7 @@ async def create_meeting(
 @router.patch(
     "/{hash}",
     response_model=MeetResponse,
-    summary="Редактировать встречи",
+    summary="Редактировать встречу",
     description="Отправляет полное описание встречи, \
         то есть измененные и не измененные",
 )
@@ -65,6 +65,8 @@ async def edit_meeting(
     return await service.edit_meeting(hash, meeting, user)
 
 
+# Если пользователь будучи не авторизованным выбрал слоты, то эти слоты сохраняются,
+# но он не может их отредактировать, так как не будет доступа к ручке редактирования слотов
 @router.patch(
     "/{hash}/slots",
     response_model=SlotsUser,
@@ -76,6 +78,25 @@ async def add_slots(
     hash: UUID,
     slots: SlotsUser,
     session: AsyncSession = Depends(get_async_session),
+    user: UserSchema | None = Depends(get_current_active_user),
 ):
     service = Service(session)
-    return await service.add_slots(hash, slots)
+    return await service.add_slots(hash, slots, user)
+
+
+# Это только для зарегистрированных пользователей
+@router.patch(
+    "/{hash}/slots/edit",
+    response_model=SlotsUser,
+    summary="Отредактировать слоты, выбранные пользователем",
+    description="Отправляет отредактированные слоты встречи, \
+                которые выбрал пользователь",
+)
+async def edit_slots(
+    hash: UUID,
+    slots: SlotsUser,
+    session: AsyncSession = Depends(get_async_session),
+    user: UserSchema | None = Depends(get_current_active_user),
+):
+    service = Service(session)
+    return await service.edit_slots(hash, slots, user)

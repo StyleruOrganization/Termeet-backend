@@ -16,10 +16,12 @@ class Service:
     async def get_meeting(self, hash: UUID):
         orm_meeting = await self.repository.get_meeting(hash)
 
+        # Теперь здесь нужно добавить проврку user_id
         slots = [
             SlotsUser(name=key, slots=value)
             for slot in orm_meeting.slots
             for key, value in slot.items()
+            if key != "user_id"  # Исключаем user_id из слотов
         ]
 
         pydantic_meeting = MeetResponse(
@@ -53,6 +55,7 @@ class Service:
             SlotsUser(name=key, slots=value)
             for slot in orm_meeting.slots
             for key, value in slot.items()
+            if key != "user_id"  # Исключаем user_id из слотов
         ]
 
         pydantic_meeting = MeetResponse(
@@ -67,6 +70,11 @@ class Service:
 
         return pydantic_meeting
 
-    async def add_slots(self, hash: UUID, slots: SlotsUser):
-        await self.repository.add_slots(hash, slots.name, slots.slots)
+    async def add_slots(self, hash: UUID, slots: SlotsUser, user: UserSchema | None):
+        await self.repository.add_slots(hash, slots.name, slots.slots, user)
+        return slots
+
+
+    async def edit_slots(self, hash: UUID, slots: SlotsUser, user: UserSchema | None):
+        await self.repository.edit_slots(hash, slots.name, slots.slots, user)
         return slots

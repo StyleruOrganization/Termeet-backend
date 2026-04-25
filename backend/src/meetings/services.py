@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from backend.src.users.schemas import UserSchema
 from .infrastructure import Infrastructure
 from .schemas import MeetResponse, MeetCreate, SlotsUser
 
@@ -15,9 +16,12 @@ class Service:
     async def get_meeting(self, hash: UUID):
         orm_meeting = await self.repository.get_meeting(hash)
 
+        # Теперь здесь нужно добавить проврку user_id
         slots = [
             SlotsUser(name=key, slots=value)
-            for slot in orm_meeting.slots for key, value in slot.items()
+            for slot in orm_meeting.slots
+            for key, value in slot.items()
+            if key != "user_id"  # Исключаем user_id из слотов
         ]
 
         pydantic_meeting = MeetResponse(
@@ -27,25 +31,31 @@ class Service:
             duration=orm_meeting.duration,
             dataRange=orm_meeting.data_range,
             hash=orm_meeting.id,
-            slots=slots
+            slots=slots,
         )
 
         return pydantic_meeting
 
-    async def create_meeting(self, meeting: MeetCreate) -> MeetResponse:
+    async def create_meeting(
+        self, meeting: MeetCreate, user: UserSchema | None
+    ) -> MeetResponse:
         dict_meeting = meeting.model_dump()
-        orm_meeting = await self.repository.create_meeting(dict_meeting)
+        orm_meeting = await self.repository.create_meeting(dict_meeting, user)
         pydantic_meeting = MeetResponse.model_validate(orm_meeting)
         return pydantic_meeting
 
     async def edit_meeting(
-            self, hash: UUID, meeting: MeetCreate
-            ) -> MeetResponse:
+        self, hash: UUID, meeting: MeetCreate, user: UserSchema | None
+    ) -> MeetResponse:
         dict_meeting = meeting.model_dump()
-        orm_meeting = await self.repository.edit_meeting(hash, dict_meeting)
+        orm_meeting = await self.repository.edit_meeting(
+            hash, dict_meeting, user
+        )
         slots = [
             SlotsUser(name=key, slots=value)
-            for slot in orm_meeting.slots for key, value in slot.items()
+            for slot in orm_meeting.slots
+            for key, value in slot.items()
+            if key != "user_id"  # Исключаем user_id из слотов
         ]
 
         pydantic_meeting = MeetResponse(
@@ -55,11 +65,23 @@ class Service:
             duration=orm_meeting.duration,
             dataRange=orm_meeting.data_range,
             hash=orm_meeting.id,
-            slots=slots
+            slots=slots,
         )
 
         return pydantic_meeting
 
-    async def add_slots(self, hash: UUID, slots: SlotsUser):
-        await self.repository.add_slots(hash, slots.name, slots.slots)
+    async def add_slots(self, hash: UUID, slots: SlotsUser, user: UserSchema | None):
+        await self.repository.add_slots(hash, slots.name, slots.slots, user)
         return slots
+
+
+    async def edit_slots(self, hash: UUID, slots: SlotsUser, user: UserSchema | None):
+        await self.repository.edit_slots(hash, slots.name, slots.slots, user)
+        return slots
+    
+
+    async def delete_slots_of_user(self, hash: UUID, username: str, user: UserSchema | None):
+        await self.repository.delete_slots_of_user(hash, username, user)
+        return {"detail": "Slots deleted successfully"}
+    
+    

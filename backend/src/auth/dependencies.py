@@ -15,16 +15,19 @@ from backend.src.auth.utils import (
     REFRESH_TOKEN_COOKIE
 )
 from backend.src.dependencies import get_async_session
-from backend.src.auth.schemas import UserSchema
+from backend.src.users.schemas import UserSchema
 
 
 # Подумай насчет OAuth2PasswordBearer
-http_bearer = HTTPBearer()
+http_bearer = HTTPBearer(auto_error=False)
 
 
 async def _get_current_access_token_payload(
         credentials: HTTPAuthorizationCredentials = Depends(http_bearer)
 ):
+    if not credentials:
+        return None
+
     token: str = credentials.credentials
 
     try:
@@ -83,9 +86,12 @@ def get_auth_user_from_token_of_type(token_type: str):
         current_function_of_token_payload = _get_current_refresh_token_payload
 
     async def get_auth_user_from_token(
-            payload: dict = Depends(current_function_of_token_payload),
+            payload: dict | None = Depends(current_function_of_token_payload),
             session: AsyncSession = Depends(get_async_session)
     ):
+        if not payload:
+            return None
+
         await validate_token_type(payload, token_type)
         return await get_user_by_token_sub(payload, session)
 
@@ -103,8 +109,11 @@ get_current_auth_user_from_refresh = get_auth_user_from_token_of_type(
 
 
 async def get_current_active_user(
-        user: UserSchema = Depends(_get_current_auth_user_from_access)
+        user: UserSchema | None = Depends(_get_current_auth_user_from_access)
 ):
+    if not user:
+        return None
+
     if user.is_active:
         return user
     raise HTTPException(

@@ -1,7 +1,4 @@
-from uuid import UUID
-from typing import Optional
-
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 
 class Code(BaseModel):
@@ -26,20 +23,6 @@ class YandexUserData(BaseModel):
     default_email: str
     emails: list
     psuid: str
-
-
-class UserSchema(BaseModel):
-    id: UUID
-    first_name: str
-    last_name: str
-    is_active: bool
-    email: str
-    additional_emails: Optional[list]
-
-    model_config = ConfigDict(
-        from_attributes=True,
-        populate_by_name=True
-    )
 
 
 class TokenInfo(BaseModel):

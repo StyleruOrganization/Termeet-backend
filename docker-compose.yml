@@ -19,6 +19,7 @@ services:
     volumes:
       - ./backend/migrations/:/code/backend/migrations/
       - ./backend/docs/openapi.yaml:/code/backend/docs/openapi.yaml
+      - ./certs/:/code/backend/certs/
     networks:
       - backend-net
     depends_on:

@@ -190,3 +190,58 @@ class Infrastructure(Repository):
 
         self.session.add(meeting)
         await self.session.flush()
+
+    # А еще думаю, здесь нужно удалять связь между пользователем и встречей
+    async def delete_slots_of_user(
+        self, id: UUID, username: str, user: UserSchema | None
+    ):
+        query: Select = select(Meetings).options(selectinload(Meetings.participants)).where(Meetings.id == id)
+        result: AsyncResult = await self.session.execute(query)
+        meeting: Meetings = result.scalar_one_or_none()
+
+        if not meeting:
+            raise HTTPException(
+                status_code=HTTP_404_NOT_FOUND, detail="Meeting not found"
+            )
+
+        if not user:
+            raise HTTPException(
+                status_code=HTTP_401_UNAUTHORIZED,
+                detail="You must be authenticated to delete slots of this meeting",
+            )
+
+        if user.id != meeting.owner_id:
+            raise HTTPException(
+                status_code=HTTP_403_FORBIDDEN,
+                detail="You are not the owner of this meeting",
+            )
+
+        current_slots = meeting.slots.copy() if meeting.slots else []
+
+        for slot in current_slots:
+            for key, _ in slot.items():
+                if key == username:
+                    current_slots.remove(slot)
+                    # По сути, здесь уже точно у slot должен быть user_id
+                    if user := await self.session.get(Users, slot["user_id"]):
+                        if user in meeting.participants:
+                            meeting.participants.remove(user)
+                    elif slot["user_id"] is not None:  # Если user_id есть, но пользователя нет, то это странно, но все же обработаем этот кейс
+                        raise HTTPException(
+                            status_code=HTTP_404_NOT_FOUND, detail="User not found"
+                        )
+                    break
+            else:
+                continue
+            break
+        else:
+            # Вот эта ошибка хер возникнет конечно, так как вряд ли от Кирюхи такое придет
+            raise HTTPException(
+                status_code=HTTP_404_NOT_FOUND,
+                detail="Slots for this user not found in this meeting",
+            )
+
+        meeting.slots = current_slots
+
+        self.session.add(meeting)
+        await self.session.flush()

@@ -100,3 +100,20 @@ async def edit_slots(
 ):
     service = Service(session)
     return await service.edit_slots(hash, slots, user)
+
+
+# Удаление слотов пользователя, выбранного создателем
+@router.delete(
+    "/{hash}/slots/{username}",
+    summary="Удалить слоты, выбранные пользователем",
+    description="Удаляет слоты встречи, которые выбрал \
+                пользователь",
+)
+async def delete_slots(
+    hash: UUID,
+    username: str,
+    session: AsyncSession = Depends(get_async_session),
+    user: UserSchema | None = Depends(get_current_active_user),
+):
+    service = Service(session)
+    return await service.delete_slots_of_user(hash, username, user)

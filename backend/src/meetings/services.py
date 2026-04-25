@@ -78,3 +78,10 @@ class Service:
     async def edit_slots(self, hash: UUID, slots: SlotsUser, user: UserSchema | None):
         await self.repository.edit_slots(hash, slots.name, slots.slots, user)
         return slots
+    
+
+    async def delete_slots_of_user(self, hash: UUID, username: str, user: UserSchema | None):
+        await self.repository.delete_slots_of_user(hash, username, user)
+        return {"detail": "Slots deleted successfully"}
+    
+    

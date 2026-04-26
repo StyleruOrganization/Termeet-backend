@@ -26,6 +26,12 @@ class Infrastructure(Repository):
     def __init__(self, session: AsyncSession):
         super().__init__(session)
 
+    async def _get_cached_user(self, user: UserSchema) -> Optional[Users]:
+        user_cache = self.session.info.get("user_cache", {})
+        cached_user: Users = user_cache.get(user.id)
+
+        return cached_user
+
     async def get_meeting(self, id: UUID) -> Optional[Meetings]:
         record: Meetings | None = await self.session.get(Meetings, id)
 
@@ -43,8 +49,9 @@ class Infrastructure(Repository):
         object: Meetings = Meetings(**meeting.model_dump(by_alias=True))
 
         if user:
-            user: Users = await self.session.get(Users, user.id)
-            object.owner = user
+            # Достаем пользователя из словаря сессии
+            cached_user = await self._get_cached_user(user)
+            object.owner = cached_user
 
         self.session.add(object)
         await self.session.flush()
@@ -88,9 +95,7 @@ class Infrastructure(Repository):
             .options(selectinload(Meetings.participants))
             .where(Meetings.id == id)
         )
-
         result: AsyncResult = await self.session.execute(query)
-
         meeting: Meetings = result.scalar_one_or_none()
 
         if not meeting:
@@ -99,17 +104,15 @@ class Infrastructure(Repository):
             )
 
         if user:
-            if user := await self.session.get(Users, user.id):
-                if user in meeting.participants:
-                    raise HTTPException(
-                        status_code=HTTP_403_FORBIDDEN,
-                        detail="You have already added slots for this meeting",
-                    )
-                meeting.participants.append(user)
-            else:
+            # Достаем пользователя из словаря сессии
+            cached_user = await self._get_cached_user(user)
+
+            if cached_user in meeting.participants:
                 raise HTTPException(
-                    status_code=HTTP_404_NOT_FOUND, detail="User not found"
+                    status_code=HTTP_403_FORBIDDEN,
+                    detail="You have already added slots for this meeting",
                 )
+            meeting.participants.append(cached_user)
 
         current_slots = meeting.slots.copy() if meeting.slots else []
 
@@ -143,15 +146,14 @@ class Infrastructure(Repository):
                 status_code=HTTP_401_UNAUTHORIZED,
                 detail="You must be authenticated to edit slots",
             )
-        elif user := (await self.session.get(Users, user.id)):
-            if user not in meeting.participants:
-                raise HTTPException(
-                    status_code=HTTP_403_FORBIDDEN,
-                    detail="You are not a participant of this meeting",
-                )
-        else:
+
+        # Достаем пользователя из словаря сессии
+        cached_user = await self._get_cached_user(user)
+
+        if cached_user not in meeting.participants:
             raise HTTPException(
-                status_code=HTTP_404_NOT_FOUND, detail="User not found"
+                status_code=HTTP_403_FORBIDDEN,
+                detail="You are not a participant of this meeting",
             )
 
         current_slots = meeting.slots.copy() if meeting.slots else []

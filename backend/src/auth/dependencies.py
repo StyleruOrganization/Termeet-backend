@@ -70,13 +70,16 @@ async def get_user_by_token_sub(payload: dict, session: AsyncSession):
     user_id: UUID | None = UUID(payload.get("sub"))
 
     repository = Infrastructure(session)
+
     if user := (await repository.check_user_in_db_by_id(user_id)):
+        # Сохраняю объект в словаре сессии, чтобы не делать повторный запрос😎
+        session.info.setdefault("user_cache", {})[user_id] = user
         user: UserSchema = UserSchema.model_validate(user)
         return user
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="token invalid (user not found)",
+        detail="User not found",
     )
 
 
@@ -138,8 +141,6 @@ async def validate_login_user(
             detail="invalid email or password",
         )
 
-    # Если у юзера нет пароля, значит он регался через OAuth,
-    # и по этому не может залогиниться через форму
     if not user.password_hash:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -24,9 +24,8 @@ class OAuthAccount(Base):
     # чтобы потом пользоваться сервисами Яндекса
 
     provider: Mapped[str] = mapped_column(
-        PgEnum(OAuthEnum, name="oauth_enum", create_type=False),
-        nullable=False
-        )
+        PgEnum(OAuthEnum, name="oauth_enum", create_type=False), nullable=False
+    )
     provider_user_id: Mapped[int] = mapped_column(nullable=False)
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))

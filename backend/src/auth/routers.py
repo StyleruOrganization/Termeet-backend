@@ -97,7 +97,7 @@ async def auth_refresh_jwt(
     summary="Регистрация нового пользователя",
     description="Регистрирует нового пользователя, получает его данные, \
                  хеширует пароль, сохраняет в БД",
-    response_model=UserSchema
+    response_model=UserSchema,
 )
 async def default_register_user(
     user_data: RegisterUserData = Form(),
@@ -113,7 +113,7 @@ async def default_register_user(
     summary="Авторизация пользователя, выдача токенов",
     description="Авторизует пользователя по email и паролю, \
         выдаёт access и refresh токен",
-    response_model=TokenInfo
+    response_model=TokenInfo,
 )
 async def auth_user_issue_jwt(
     response: Response,

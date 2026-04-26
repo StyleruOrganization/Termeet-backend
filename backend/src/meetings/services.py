@@ -46,9 +46,7 @@ class Service:
     async def edit_meeting(
         self, hash: UUID, meeting: MeetCreate, user: UserSchema | None
     ) -> MeetResponse:
-        orm_meeting = await self.repository.edit_meeting(
-            hash, meeting, user
-        )
+        orm_meeting = await self.repository.edit_meeting(hash, meeting, user)
         slots = [
             SlotsUser(name=key, slots=value)
             for slot in orm_meeting.slots
@@ -68,15 +66,20 @@ class Service:
 
         return pydantic_meeting
 
-    async def add_slots(self, hash: UUID, slots: SlotsUser, user: UserSchema | None):
+    async def add_slots(
+        self, hash: UUID, slots: SlotsUser, user: UserSchema | None
+    ):
         await self.repository.add_slots(hash, slots.name, slots.slots, user)
         return slots
 
-    async def edit_slots(self, hash: UUID, slots: SlotsUser, user: UserSchema | None):
+    async def edit_slots(
+        self, hash: UUID, slots: SlotsUser, user: UserSchema | None
+    ):
         await self.repository.edit_slots(hash, slots.name, slots.slots, user)
         return slots
 
-
-    async def delete_slots_of_user(self, hash: UUID, username: str, user: UserSchema | None):
+    async def delete_slots_of_user(
+        self, hash: UUID, username: str, user: UserSchema | None
+    ):
         await self.repository.delete_slots_of_user(hash, username, user)
         return {"detail": "Slots deleted successfully"}

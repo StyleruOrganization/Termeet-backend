@@ -45,10 +45,7 @@ class UserData(BaseModel):
     provider: str | None = None
     provider_user_id: str | None = None
 
-    model_config = ConfigDict(
-        from_attributes=True,
-        populate_by_name=True
-    )
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     @classmethod
     def from_yandex(cls, data: YandexUserData) -> "UserData":
@@ -58,7 +55,7 @@ class UserData(BaseModel):
             email=data.default_email,
             additional_emails=data.emails,
             provider="YANDEX",
-            provider_user_id=data.id
+            provider_user_id=data.id,
         )
 
     @classmethod

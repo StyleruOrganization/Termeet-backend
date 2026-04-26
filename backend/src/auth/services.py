@@ -19,7 +19,6 @@ from backend.src.auth.utils import (
     create_jwt_token,
     ACCESS_TOKEN_TYPE,
     REFRESH_TOKEN_TYPE,
-    hash_password,
 )
 
 
@@ -84,9 +83,7 @@ class Service:
 
         return user_data
 
-    async def auth_yandex_user(
-        self, user_data: YandexUserData
-    ) -> UserSchema:
+    async def auth_yandex_user(self, user_data: YandexUserData) -> UserSchema:
 
         if user := (await self.repository.yandex_check_user_in_db(user_data)):
             user: UserSchema = UserSchema.model_validate(user)
@@ -147,9 +144,7 @@ class Service:
 
     async def register_user(self, user_data: RegisterUserData) -> UserSchema:
         if user := (
-            await self.repository.check_user_in_db_by_email(
-                user_data.email
-            )
+            await self.repository.check_user_in_db_by_email(user_data.email)
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

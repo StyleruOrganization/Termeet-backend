@@ -26,7 +26,7 @@ async def create_jwt_token(
     return await encode_jwt(
         jwt_payload,
         expire_minutes=expire_minutes,
-        expire_timedelta=expire_timedelta
+        expire_timedelta=expire_timedelta,
     )
 
 

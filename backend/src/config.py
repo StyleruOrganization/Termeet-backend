@@ -8,9 +8,7 @@ BASE_DIR = Path(__file__).parent.parent
 
 class ConfigBase(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore"
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
 
@@ -24,8 +22,10 @@ class DatabaseConfig(ConfigBase):
 
     @property
     def db_url(self):
-        return (f"postgresql+asyncpg://{self.USER}:{self.PASSWORD}@"
-                f"{self.HOST}:{self.PORT}/{self.DB}")
+        return (
+            f"postgresql+asyncpg://{self.USER}:{self.PASSWORD}@"
+            f"{self.HOST}:{self.PORT}/{self.DB}"
+        )
 
 
 class ProdDatabaseConfig(DatabaseConfig):
@@ -33,8 +33,10 @@ class ProdDatabaseConfig(DatabaseConfig):
 
     @property
     def db_url(self):
-        return (f"postgresql+asyncpg://{self.USER}:{self.PASSWORD}@"
-                f"{self.HOST}:{self.PORT}/{self.DB}")
+        return (
+            f"postgresql+asyncpg://{self.USER}:{self.PASSWORD}@"
+            f"{self.HOST}:{self.PORT}/{self.DB}"
+        )
 
 
 class YandexAuthConfig(ConfigBase):

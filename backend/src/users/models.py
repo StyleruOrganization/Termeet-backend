@@ -22,8 +22,8 @@ class Users(Base):
     email: Mapped[Optional[str]] = mapped_column(unique=True, index=True)
     additional_emails: Mapped[Optional[list[str]]] = mapped_column(
         ARRAY(String)
-        )
-    
+    )
+
     password_hash: Mapped[Optional[bytes]] = mapped_column(nullable=True)
 
     oauth_accounts: Mapped[Optional[list["OAuthAccount"]]] = relationship(
@@ -33,12 +33,9 @@ class Users(Base):
     meetings_owner: Mapped[Optional[list["Meetings"]]] = relationship(
         back_populates="owner"
     )
-    meetings_participant: Mapped[
-        Optional[list["Meetings"]]
-        ] = relationship(
-            back_populates="participants",
-            secondary="meetings_users"
-            )
+    meetings_participant: Mapped[Optional[list["Meetings"]]] = relationship(
+        back_populates="participants", secondary="meetings_users"
+    )
 
     teams: Mapped[Optional[list["Teams"]]] = relationship(
         back_populates="user"

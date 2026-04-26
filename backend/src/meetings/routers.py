@@ -27,9 +27,6 @@ async def get_meeting(
     return await service.get_meeting(hash)
 
 
-# Здесь получается, если создатель не авторизован, то соответственно,
-# он не может редактировать поля встречи потом (думаю, что это нужно указать
-# при нажатии кнопки "сохранить")
 @router.post(
     "/create",
     response_model=MeetResponse,
@@ -41,7 +38,7 @@ async def get_meeting(
 async def create_meeting(
     meeting: MeetCreate,
     session: AsyncSession = Depends(get_async_session),
-    user: UserSchema | None = Depends(get_current_active_user)
+    user: UserSchema | None = Depends(get_current_active_user),
 ) -> MeetResponse:
     service = Service(session)
     return await service.create_meeting(meeting, user)
@@ -65,8 +62,6 @@ async def edit_meeting(
     return await service.edit_meeting(hash, meeting, user)
 
 
-# Если пользователь будучи не авторизованным выбрал слоты, то эти слоты сохраняются,
-# но он не может их отредактировать, так как не будет доступа к ручке редактирования слотов
 @router.patch(
     "/{hash}/slots",
     response_model=SlotsUser,
@@ -102,7 +97,6 @@ async def edit_slots(
     return await service.edit_slots(hash, slots, user)
 
 
-# Удаление слотов пользователя, выбранного создателем
 @router.delete(
     "/{hash}/slots/{username}",
     summary="Удалить слоты, выбранные пользователем",

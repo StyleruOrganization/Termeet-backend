@@ -111,7 +111,11 @@ class Infrastructure(Repository):
     async def add_slots(
         self, id: UUID, name: str, slots: list, user: UserSchema | None
     ):
-        query: Select = select(Meetings).options(selectinload(Meetings.participants)).where(Meetings.id == id)
+        query: Select = (
+            select(Meetings)
+            .options(selectinload(Meetings.participants))
+            .where(Meetings.id == id)
+        )
 
         result: AsyncResult = await self.session.execute(query)
 
@@ -137,8 +141,9 @@ class Infrastructure(Repository):
 
         current_slots = meeting.slots.copy() if meeting.slots else []
 
-        # Теперь же в слоты будем добвавлять id пользователя, который выбрал эти слоты
-        current_slots.append({name: slots, "user_id": str(user.id) if user else None})
+        current_slots.append(
+            {name: slots, "user_id": str(user.id) if user else None}
+        )
 
         meeting.slots = current_slots
 
@@ -148,7 +153,11 @@ class Infrastructure(Repository):
     async def edit_slots(
         self, id: UUID, name: str, slots: list, user: UserSchema | None
     ):
-        query: Select = select(Meetings).options(selectinload(Meetings.participants)).where(Meetings.id == id)
+        query: Select = (
+            select(Meetings)
+            .options(selectinload(Meetings.participants))
+            .where(Meetings.id == id)
+        )
         result: AsyncResult = await self.session.execute(query)
         meeting: Meetings = result.scalar_one_or_none()
 
@@ -160,7 +169,7 @@ class Infrastructure(Repository):
         if not user:
             raise HTTPException(
                 status_code=HTTP_401_UNAUTHORIZED,
-                detail="You must be authenticated to edit slots of this meeting",
+                detail="You must be authenticated to edit slots",
             )
         elif user := (await self.session.get(Users, user.id)):
             if user not in meeting.participants:
@@ -196,7 +205,11 @@ class Infrastructure(Repository):
     async def delete_slots_of_user(
         self, id: UUID, username: str, user: UserSchema | None
     ):
-        query: Select = select(Meetings).options(selectinload(Meetings.participants)).where(Meetings.id == id)
+        query: Select = (
+            select(Meetings)
+            .options(selectinload(Meetings.participants))
+            .where(Meetings.id == id)
+        )
         result: AsyncResult = await self.session.execute(query)
         meeting: Meetings = result.scalar_one_or_none()
 
@@ -208,7 +221,7 @@ class Infrastructure(Repository):
         if not user:
             raise HTTPException(
                 status_code=HTTP_401_UNAUTHORIZED,
-                detail="You must be authenticated to delete slots of this meeting",
+                detail="You must be authenticated to delete slots",
             )
 
         if user.id != meeting.owner_id:
@@ -227,16 +240,16 @@ class Infrastructure(Repository):
                     if user := await self.session.get(Users, slot["user_id"]):
                         if user in meeting.participants:
                             meeting.participants.remove(user)
-                    elif slot["user_id"] is not None:  # Если user_id есть, но пользователя нет, то это странно, но все же обработаем этот кейс
+                    elif slot["user_id"] is not None:
                         raise HTTPException(
-                            status_code=HTTP_404_NOT_FOUND, detail="User not found"
+                            status_code=HTTP_404_NOT_FOUND,
+                            detail="User not found",
                         )
                     break
             else:
                 continue
             break
         else:
-            # Вот эта ошибка хер возникнет конечно, так как вряд ли от Кирюхи такое придет
             raise HTTPException(
                 status_code=HTTP_404_NOT_FOUND,
                 detail="Slots for this user not found in this meeting",

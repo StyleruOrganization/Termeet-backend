@@ -11,7 +11,7 @@ app = FastAPI(
     version="1.0.0",
     description="API для Termeet",
     root_path="/api",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 origins = [

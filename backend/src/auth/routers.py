@@ -14,7 +14,6 @@ from backend.src.auth.schemas import (
 )
 from backend.src.auth.services import Service
 from backend.src.auth.dependencies import (
-    get_current_active_user,
     get_current_auth_user_from_refresh,
     validate_login_user,
 )
@@ -91,15 +90,6 @@ async def auth_refresh_jwt(
     access_token, _ = await service.create_tokens(user, only_access=True)
 
     return TokenInfo(access_token=access_token)
-
-
-@router.get(
-    "/users/me",
-    summary="Для теста, потом удалю!",
-    description="Получает юзера из access-токена и проверяет его в БД",
-)
-async def auth_user(user: UserSchema = Depends(get_current_active_user)):
-    return user
 
 
 @router.post(

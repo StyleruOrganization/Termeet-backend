@@ -45,7 +45,9 @@ async def encode_jwt(
         expire = now_utc + timedelta(minutes=expire_minutes)
     to_encode.update(exp=expire, iat=now_utc)
 
-    encoded = jwt.encode(to_encode, private_key, algorithm=algorithm)
+    encoded = await asyncio.to_thread(
+        jwt.encode, to_encode, private_key, algorithm=algorithm
+    )
     return encoded
 
 
@@ -54,7 +56,9 @@ async def decode_jwt(
     public_key: str = config.auth_jwt.PUBLIC_KEY_PATH.read_text(),
     algorithm: str = config.auth_jwt.ALGORITHM,
 ):
-    decoded = jwt.decode(token, public_key, algorithms=[algorithm])
+    decoded = await asyncio.to_thread(
+        jwt.decode, token, public_key, algorithms=[algorithm]
+    )
     return decoded
 
 

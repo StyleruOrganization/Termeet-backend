@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession, AsyncResult
     from sqlalchemy import Select
     from sqlalchemy.engine import Result
+    from backend.src.meetings.schemas import MeetCreate
 
 
 # Для незалогинов
@@ -51,15 +52,15 @@ class Infrastructure(Repository):
         return record
 
     async def create_meeting(
-        self, meeting: dict, user: UserSchema | None
+        self, meeting: MeetCreate, user: UserSchema | None
     ) -> Optional[Meetings]:
 
         object: Meetings = Meetings(
-            name=meeting["name"],
-            description=meeting["description"],
-            link=meeting["link"],
-            duration=meeting["duration"],
-            data_range=meeting["dataRange"],
+            name=meeting.name,
+            description=meeting.description,
+            link=meeting.link,
+            duration=meeting.duration,
+            data_range=meeting.dataRange,
             slots=[],
         )
 
@@ -69,14 +70,14 @@ class Infrastructure(Repository):
             else:
                 raise HTTPException(
                     status_code=HTTP_404_NOT_FOUND, detail="User not found"
-                )       
+                )
 
         self.session.add(object)
         await self.session.flush()
         return object
 
     async def edit_meeting(
-        self, id: UUID, meeting: dict, user: UserSchema | None
+        self, id: UUID, meeting: MeetCreate, user: UserSchema | None
     ) -> Optional[Meetings]:
 
         record: Meetings | None = await self.session.get(Meetings, id)
@@ -98,11 +99,11 @@ class Infrastructure(Repository):
                 detail="You are not the owner of this meeting",
             )
 
-        record.name = meeting["name"]
-        record.description = meeting["description"]
-        record.link = meeting["link"]
-        record.duration = meeting["duration"]
-        record.data_range = meeting["dataRange"]
+        record.name = meeting.name
+        record.description = meeting.description
+        record.link = meeting.link
+        record.duration = meeting.duration
+        record.data_range = meeting.dataRange
 
         await self.session.flush()
         return record
@@ -162,11 +163,11 @@ class Infrastructure(Repository):
                 detail="You must be authenticated to edit slots of this meeting",
             )
         elif user := (await self.session.get(Users, user.id)):
-                if user not in meeting.participants:
-                    raise HTTPException(
-                        status_code=HTTP_403_FORBIDDEN,
-                        detail="You are not a participant of this meeting",
-                    )
+            if user not in meeting.participants:
+                raise HTTPException(
+                    status_code=HTTP_403_FORBIDDEN,
+                    detail="You are not a participant of this meeting",
+                )
         else:
             raise HTTPException(
                 status_code=HTTP_404_NOT_FOUND, detail="User not found"

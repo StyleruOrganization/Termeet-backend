@@ -61,7 +61,7 @@ async def auth_yandex_issue_jwt(
         tokens.access_token
     )
 
-    user: UserSchema = await service.authentication_user(user_data)
+    user: UserSchema = await service.auth_yandex_user(user_data)
     access_token, refresh_token = await service.create_tokens(user)
 
     response.set_cookie(

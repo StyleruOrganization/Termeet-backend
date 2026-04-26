@@ -12,6 +12,7 @@ from backend.src.auth.schemas import (
     AuthTokens,
     RegisterUserData,
     YandexUserData,
+    UserData,
 )
 from backend.src.config import config
 from backend.src.auth.utils import (
@@ -83,10 +84,9 @@ class Service:
 
         return user_data
 
-    async def authentication_user(
+    async def auth_yandex_user(
         self, user_data: YandexUserData
     ) -> UserSchema:
-        user_data: dict = user_data.model_dump()
 
         if user := (await self.repository.yandex_check_user_in_db(user_data)):
             user: UserSchema = UserSchema.model_validate(user)
@@ -102,7 +102,8 @@ class Service:
                 detail="User with this email already exists",
             )
 
-        user: Users = await self.repository.register_user(user_data, "YANDEX")
+        user_data: UserData = UserData.from_yandex(user_data)
+        user: Users = await self.repository.register_user(user_data)
         user: UserSchema = UserSchema.model_validate(user)
         return user
 
@@ -147,14 +148,14 @@ class Service:
     async def register_user(self, user_data: RegisterUserData) -> UserSchema:
         if user := (
             await self.repository.check_user_in_db_by_email(
-                user_data.default_email
+                user_data.email
             )
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User with this email already exists",
             )
-        user_data.password = await hash_password(user_data.password)
-        user_data: dict = user_data.model_dump()
-        user: Users = await self.repository.register_user(user_data, "DEFAULT")
+
+        user_data: UserData = await UserData.from_register(user_data)
+        user: Users = await self.repository.register_user(user_data)
         return UserSchema.model_validate(user)

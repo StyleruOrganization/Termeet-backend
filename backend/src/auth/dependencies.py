@@ -2,13 +2,15 @@ from uuid import UUID
 
 from jwt.exceptions import InvalidTokenError
 from starlette import status
-from fastapi import Depends, HTTPException, Cookie
+from fastapi import Depends, Form, HTTPException, Cookie
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.src.auth.schemas import LoginUserData
 from backend.src.auth.infrastructure import Infrastructure
 from backend.src.auth.utils import (
     decode_jwt,
+    validate_password,
     TOKEN_TYPE_FIELD,
     ACCESS_TOKEN_TYPE,
     REFRESH_TOKEN_TYPE,
@@ -68,7 +70,7 @@ async def get_user_by_token_sub(payload: dict, session: AsyncSession):
     user_id: UUID | None = UUID(payload.get("sub"))
 
     repository = Infrastructure(session)
-    if user := (await repository.check_user_in_db(user_id)):
+    if user := (await repository.check_user_in_db_by_id(user_id)):
         user: UserSchema = UserSchema.model_validate(user)
         return user
 
@@ -114,9 +116,49 @@ async def get_current_active_user(
     if not user:
         return None
 
-    if user.is_active:
-        return user
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="user inactive"
-    )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="user inactive"
+        )
+
+    return user
+
+
+async def validate_login_user(
+        user_data: LoginUserData = Form(),
+        session: AsyncSession = Depends(get_async_session),
+):
+    repository = Infrastructure(session)
+
+    if not (
+        user := (await repository.check_user_in_db_by_email(user_data.email))
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid email or password"
+        )
+
+    # Если у юзера нет пароля, значит он регался через OAuth,
+    # и по этому не может залогиниться через форму
+    if not user.password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid email or password"
+        )
+
+    if not (await validate_password(user_data.password, user.password_hash)):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid email or password"
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="user inactive"
+        )
+
+    user: UserSchema = UserSchema.model_validate(user)
+
+    return user

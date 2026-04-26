@@ -19,30 +19,15 @@ from backend.src.teams.models import Teams  # noqa:
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession, AsyncResult
     from sqlalchemy import Select
-    from sqlalchemy.engine import Result
     from backend.src.meetings.schemas import MeetCreate
 
 
-# Для незалогинов
 class Infrastructure(Repository):
     def __init__(self, session: AsyncSession):
         super().__init__(session)
 
     async def get_meeting(self, id: UUID) -> Optional[Meetings]:
-        query: Select = select(
-            Meetings.id,
-            Meetings.name,
-            Meetings.description,
-            Meetings.link,
-            Meetings.duration,
-            Meetings.data_range,
-            Meetings.slots,
-            Meetings.emails,
-        ).where(Meetings.id == id)
-
-        result: Result = await self.session.execute(query)
-
-        record: Optional[Meetings] = result.one_or_none()
+        record: Meetings | None = await self.session.get(Meetings, id)
 
         if not record:
             raise HTTPException(
@@ -55,22 +40,11 @@ class Infrastructure(Repository):
         self, meeting: MeetCreate, user: UserSchema | None
     ) -> Optional[Meetings]:
 
-        object: Meetings = Meetings(
-            name=meeting.name,
-            description=meeting.description,
-            link=meeting.link,
-            duration=meeting.duration,
-            data_range=meeting.dataRange,
-            slots=[],
-        )
+        object: Meetings = Meetings(**meeting.model_dump(by_alias=True))
 
         if user:
-            if user := await self.session.get(Users, user.id):
-                object.owner = user
-            else:
-                raise HTTPException(
-                    status_code=HTTP_404_NOT_FOUND, detail="User not found"
-                )
+            user: Users = await self.session.get(Users, user.id)
+            object.owner = user
 
         self.session.add(object)
         await self.session.flush()
@@ -99,12 +73,10 @@ class Infrastructure(Repository):
                 detail="You are not the owner of this meeting",
             )
 
-        record.name = meeting.name
-        record.description = meeting.description
-        record.link = meeting.link
-        record.duration = meeting.duration
-        record.data_range = meeting.dataRange
+        for key, value in meeting.model_dump().items():
+            setattr(record, key, value)
 
+        self.session.add(record)
         await self.session.flush()
         return record
 
@@ -201,7 +173,6 @@ class Infrastructure(Repository):
         self.session.add(meeting)
         await self.session.flush()
 
-    # А еще думаю, здесь нужно удалять связь между пользователем и встречей
     async def delete_slots_of_user(
         self, id: UUID, username: str, user: UserSchema | None
     ):

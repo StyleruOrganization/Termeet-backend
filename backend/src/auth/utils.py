@@ -1,3 +1,4 @@
+import bcrypt
 from datetime import timedelta, datetime, UTC
 
 import jwt
@@ -54,3 +55,15 @@ async def decode_jwt(
 ):
     decoded = jwt.decode(token, public_key, algorithms=[algorithm])
     return decoded
+
+
+async def hash_password(password: str) -> bytes:
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode(), salt)
+
+
+async def validate_password(password: str, hashed_password: bytes) -> bool:
+    return bcrypt.checkpw(
+        password=password.encode(),
+        hashed_password=hashed_password,
+    )

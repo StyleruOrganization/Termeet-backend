@@ -1,7 +1,8 @@
-import bcrypt
+import asyncio
 from datetime import timedelta, datetime, UTC
 
 import jwt
+import bcrypt
 
 from backend.src.config import config
 
@@ -59,11 +60,12 @@ async def decode_jwt(
 
 async def hash_password(password: str) -> bytes:
     salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode(), salt)
+    return await asyncio.to_thread(bcrypt.hashpw, password.encode(), salt)
 
 
 async def validate_password(password: str, hashed_password: bytes) -> bool:
-    return bcrypt.checkpw(
-        password=password.encode(),
-        hashed_password=hashed_password,
+    return await asyncio.to_thread(
+        bcrypt.checkpw,
+        password.encode(),
+        hashed_password,
     )

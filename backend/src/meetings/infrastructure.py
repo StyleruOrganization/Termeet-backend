@@ -175,7 +175,7 @@ class Infrastructure(Repository):
         current_slots = meeting.slots.copy() if meeting.slots else []
 
         for slot in current_slots:
-            if UUID(slot.get("user_id")) == user.id:
+            if slot.get("user_id") == str(user.id):
                 current_slots.remove(slot)
                 break
         else:

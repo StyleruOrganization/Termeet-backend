@@ -23,6 +23,8 @@ class Users(Base):
     additional_emails: Mapped[Optional[list[str]]] = mapped_column(
         ARRAY(String)
         )
+    
+    password_hash: Mapped[Optional[bytes]] = mapped_column(nullable=True)
 
     oauth_accounts: Mapped[Optional[list["OAuthAccount"]]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

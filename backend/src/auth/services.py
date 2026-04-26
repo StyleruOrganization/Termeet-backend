@@ -3,21 +3,22 @@ from urllib import parse
 from datetime import timedelta
 
 import httpx
-from fastapi import HTTPException
-from starlette import status
+from fastapi import HTTPException, status
 
 from backend.src.users.schemas import UserSchema
 from backend.src.auth.infrastructure import Infrastructure
 from backend.src.auth.schemas import (
     Code,
     AuthTokens,
+    RegisterUserData,
     YandexUserData,
 )
 from backend.src.config import config
 from backend.src.auth.utils import (
     create_jwt_token,
     ACCESS_TOKEN_TYPE,
-    REFRESH_TOKEN_TYPE
+    REFRESH_TOKEN_TYPE,
+    hash_password,
 )
 
 
@@ -48,15 +49,13 @@ class Service:
             "grant_type": "authorization_code",
             "code": code,
             "client_id": config.yandex_auth.CLIENT_ID,
-            "client_secret": config.yandex_auth.CLIENT_SECRET
+            "client_secret": config.yandex_auth.CLIENT_SECRET,
         }
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                url=base_url,
-                headers=headers,
-                data=data
+                url=base_url, headers=headers, data=data
             )
 
             tokens = response.json()
@@ -64,7 +63,7 @@ class Service:
         if "access_token" not in tokens:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Exception from yandex: invalid yandex code"
+                detail="Exception from yandex: invalid yandex code",
             )
 
         tokens = AuthTokens(**tokens)
@@ -76,10 +75,7 @@ class Service:
         headers = {"Authorization": f"OAuth {access_token}"}
 
         async with httpx.AsyncClient() as client:
-            response = await client.get(
-                url=f"{base_url}",
-                headers=headers
-            )
+            response = await client.get(url=f"{base_url}", headers=headers)
 
             user_data: dict = response.json()
 
@@ -88,21 +84,29 @@ class Service:
         return user_data
 
     async def authentication_user(
-            self, user_data: YandexUserData
-            ) -> UserSchema:
+        self, user_data: YandexUserData
+    ) -> UserSchema:
         user_data: dict = user_data.model_dump()
 
         if user := (await self.repository.yandex_check_user_in_db(user_data)):
             user: UserSchema = UserSchema.model_validate(user)
             return user
 
-        user: Users = await self.repository.register_user(user_data)
+        if user := (
+            await self.repository.check_user_in_db_by_email(
+                user_data.default_email
+            )
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User with this email already exists",
+            )
+
+        user: Users = await self.repository.register_user(user_data, "YANDEX")
         user: UserSchema = UserSchema.model_validate(user)
         return user
 
-    async def create_tokens(
-            self, user: UserSchema, only_access: bool = False
-    ):
+    async def create_tokens(self, user: UserSchema, only_access: bool = False):
         access_token = await self.create_access_token(user)
         refresh_token = None
 
@@ -139,3 +143,18 @@ class Service:
         )
 
         return refresh_token
+
+    async def register_user(self, user_data: RegisterUserData) -> UserSchema:
+        if user := (
+            await self.repository.check_user_in_db_by_email(
+                user_data.default_email
+            )
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User with this email already exists",
+            )
+        user_data.password = await hash_password(user_data.password)
+        user_data: dict = user_data.model_dump()
+        user: Users = await self.repository.register_user(user_data, "DEFAULT")
+        return UserSchema.model_validate(user)

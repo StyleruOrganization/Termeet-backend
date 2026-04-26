@@ -18,6 +18,19 @@ components:
           type: array
       title: HTTPValidationError
       type: object
+    LoginUserData:
+      properties:
+        email:
+          title: Email
+          type: string
+        password:
+          title: Password
+          type: string
+      required:
+      - email
+      - password
+      title: LoginUserData
+      type: object
     MeetCreate:
       properties:
         data_range:
@@ -93,6 +106,27 @@ components:
       - hash
       title: MeetResponse
       type: object
+    RegisterUserData:
+      properties:
+        default_email:
+          title: Default Email
+          type: string
+        first_name:
+          title: First Name
+          type: string
+        last_name:
+          title: Last Name
+          type: string
+        password:
+          title: Password
+          type: string
+      required:
+      - first_name
+      - last_name
+      - default_email
+      - password
+      title: RegisterUserData
+      type: object
     SlotsUser:
       properties:
         name:
@@ -122,6 +156,39 @@ components:
       required:
       - access_token
       title: TokenInfo
+      type: object
+    UserSchema:
+      properties:
+        additional_emails:
+          anyOf:
+          - items: {}
+            type: array
+          - type: 'null'
+          title: Additional Emails
+        email:
+          title: Email
+          type: string
+        first_name:
+          title: First Name
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        is_active:
+          title: Is Active
+          type: boolean
+        last_name:
+          title: Last Name
+          type: string
+      required:
+      - id
+      - first_name
+      - last_name
+      - is_active
+      - email
+      - additional_emails
+      title: UserSchema
       type: object
     ValidationError:
       properties:
@@ -154,6 +221,102 @@ info:
   version: 1.0.0
 openapi: 3.1.0
 paths:
+  /auth/login:
+    post:
+      description: "\u0410\u0432\u0442\u043E\u0440\u0438\u0437\u0443\u0435\u0442 \u043F\
+        \u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044F \u043F\u043E\
+        \ email \u0438 \u043F\u0430\u0440\u043E\u043B\u044E,         \u0432\u044B\u0434\
+        \u0430\u0451\u0442 access \u0438 refresh \u0442\u043E\u043A\u0435\u043D"
+      operationId: auth_user_issue_jwt_auth_login_post
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LoginUserData'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenInfo'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: "\u0410\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044F\
+        \ \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044F\
+        , \u0432\u044B\u0434\u0430\u0447\u0430 \u0442\u043E\u043A\u0435\u043D\u043E\
+        \u0432"
+      tags:
+      - Auth
+  /auth/refresh:
+    post:
+      description: "\u041E\u0431\u043D\u043E\u0432\u043B\u044F\u0435\u0442\u0441\u044F\
+        \ access \u0442\u043E\u043A\u0435\u043D \u043F\u043E refresh \u0442\u043E\u043A\
+        \u0435\u043D\u0443"
+      operationId: auth_refresh_jwt_auth_refresh_post
+      parameters:
+      - in: cookie
+        name: refresh_token
+        required: true
+        schema:
+          title: Refresh Token
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenInfo'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C access \u0442\u043E\
+        \u043A\u0435\u043D"
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      description: "\u0420\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u0443\u0435\
+        \u0442 \u043D\u043E\u0432\u043E\u0433\u043E \u043F\u043E\u043B\u044C\u0437\
+        \u043E\u0432\u0430\u0442\u0435\u043B\u044F, \u043F\u043E\u043B\u0443\u0447\
+        \u0430\u0435\u0442 \u0435\u0433\u043E \u0434\u0430\u043D\u043D\u044B\u0435\
+        ,                  \u0445\u0435\u0448\u0438\u0440\u0443\u0435\u0442 \u043F\
+        \u0430\u0440\u043E\u043B\u044C, \u0441\u043E\u0445\u0440\u0430\u043D\u044F\
+        \u0435\u0442 \u0432 \u0411\u0414"
+      operationId: default_register_user_auth_register_post
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RegisterUserData'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSchema'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: "\u0420\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044F\
+        \ \u043D\u043E\u0432\u043E\u0433\u043E \u043F\u043E\u043B\u044C\u0437\u043E\
+        \u0432\u0430\u0442\u0435\u043B\u044F"
+      tags:
+      - Auth
   /auth/users/me:
     get:
       description: "\u041F\u043E\u043B\u0443\u0447\u0430\u0435\u0442 \u044E\u0437\u0435\
@@ -192,7 +355,7 @@ paths:
         \u043D\u043E\u0432, \u043A\u043E\u0442\u043E\u0440\u044B\u0435 \u043E\u0442\
         \u0441\u044B\u043B\u0430\u044E\u0442\u0441\u044F                 \u0432 \u043A\
         \u0443\u043A\u0430\u0445 (refresh) \u0438 \u0432 Authorization: Bearer (access)"
-      operationId: handle_code_auth_yandex_callback_post
+      operationId: auth_yandex_issue_jwt_auth_yandex_callback_post
       requestBody:
         content:
           application/json:
@@ -219,36 +382,6 @@ paths:
         \ \u0442\u043E\u043A\u0435\u043D\u043E\u0432"
       tags:
       - Auth
-  /auth/yandex/refresh:
-    post:
-      description: "\u041E\u0431\u043D\u043E\u0432\u043B\u044F\u0435\u0442\u0441\u044F\
-        \ access \u0442\u043E\u043A\u0435\u043D \u043F\u043E refresh \u0442\u043E\u043A\
-        \u0435\u043D\u0443"
-      operationId: auth_refresh_jwt_auth_yandex_refresh_post
-      parameters:
-      - in: cookie
-        name: refresh_token
-        required: true
-        schema:
-          title: Refresh Token
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TokenInfo'
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C access \u0442\u043E\
-        \u043A\u0435\u043D"
-      tags:
-      - Auth
   /auth/yandex/url:
     get:
       description: "\u041F\u043E\u043B\u0443\u0447\u0430\u0435\u0442 \u0441\u043F\u0435\
@@ -257,7 +390,7 @@ paths:
         \ \u043D\u0430                  \u0444\u0440\u043E\u043D\u0442\u0435\u043D\
         \u0434, \u0441 \u043F\u043E\u043C\u043E\u0449\u044C\u044E \u043A\u043E\u0442\
         \u043E\u0440\u043E\u0433\u043E \u043F\u043E\u0442\u043E\u043C \u043C\u043E\
-        \u0436\u043D\u043E \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C\u0432\
+        \u0436\u043D\u043E \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u0432\
         \                 access \u0438 refresh \u0442\u043E\u043A\u0435\u043D\u044B\
         \ \u043E\u0442 \u042F\u043D\u0434\u0435\u043A\u0441\u0430"
       operationId: get_yandex_oauth_url_auth_yandex_url_get
@@ -300,6 +433,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - HTTPBearer: []
       summary: "\u0421\u043E\u0437\u0434\u0430\u0442\u044C \u0432\u0441\u0442\u0440\
         \u0435\u0447\u0443"
       tags:
@@ -340,6 +475,12 @@ paths:
       tags:
       - Meet
     patch:
+      description: "\u041E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0435\u0442 \u043F\
+        \u043E\u043B\u043D\u043E\u0435 \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435\
+        \ \u0432\u0441\u0442\u0440\u0435\u0447\u0438,         \u0442\u043E \u0435\u0441\
+        \u0442\u044C \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u043D\u044B\u0435\
+        \ \u0438 \u043D\u0435 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u043D\u044B\
+        \u0435"
       operationId: edit_meeting_meet__hash__patch
       parameters:
       - in: path
@@ -368,7 +509,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
-      summary: Edit Meeting
+      security:
+      - HTTPBearer: []
+      summary: "\u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\
+        \u0442\u044C \u0432\u0441\u0442\u0440\u0435\u0447\u0443"
       tags:
       - Meet
   /meet/{hash}/slots:
@@ -406,9 +550,95 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - HTTPBearer: []
       summary: "\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0441\u043B\
         \u043E\u0442\u044B, \u0432\u044B\u0431\u0440\u0430\u043D\u043D\u044B\u0435\
         \ \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u0435\
         \u043C"
+      tags:
+      - Meet
+  /meet/{hash}/slots/edit:
+    patch:
+      description: "\u041E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0435\u0442 \u043E\
+        \u0442\u0440\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u043D\
+        \u043D\u044B\u0435 \u0441\u043B\u043E\u0442\u044B \u0432\u0441\u0442\u0440\
+        \u0435\u0447\u0438,                 \u043A\u043E\u0442\u043E\u0440\u044B\u0435\
+        \ \u0432\u044B\u0431\u0440\u0430\u043B \u043F\u043E\u043B\u044C\u0437\u043E\
+        \u0432\u0430\u0442\u0435\u043B\u044C"
+      operationId: edit_slots_meet__hash__slots_edit_patch
+      parameters:
+      - in: path
+        name: hash
+        required: true
+        schema:
+          format: uuid
+          title: Hash
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SlotsUser'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlotsUser'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: "\u041E\u0442\u0440\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\
+        \u0432\u0430\u0442\u044C \u0441\u043B\u043E\u0442\u044B, \u0432\u044B\u0431\
+        \u0440\u0430\u043D\u043D\u044B\u0435 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\
+        \u0430\u0442\u0435\u043B\u0435\u043C"
+      tags:
+      - Meet
+  /meet/{hash}/slots/{username}:
+    delete:
+      description: "\u0423\u0434\u0430\u043B\u044F\u0435\u0442 \u0441\u043B\u043E\u0442\
+        \u044B \u0432\u0441\u0442\u0440\u0435\u0447\u0438, \u043A\u043E\u0442\u043E\
+        \u0440\u044B\u0435 \u0432\u044B\u0431\u0440\u0430\u043B                 \u043F\
+        \u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044C"
+      operationId: delete_slots_meet__hash__slots__username__delete
+      parameters:
+      - in: path
+        name: hash
+        required: true
+        schema:
+          format: uuid
+          title: Hash
+          type: string
+      - in: path
+        name: username
+        required: true
+        schema:
+          title: Username
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: "\u0423\u0434\u0430\u043B\u0438\u0442\u044C \u0441\u043B\u043E\u0442\
+        \u044B, \u0432\u044B\u0431\u0440\u0430\u043D\u043D\u044B\u0435 \u043F\u043E\
+        \u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u0435\u043C"
       tags:
       - Meet

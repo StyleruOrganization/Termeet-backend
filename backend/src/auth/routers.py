@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Form, Response
 from fastapi.responses import RedirectResponse
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +8,7 @@ from backend.src.users.schemas import UserSchema
 from backend.src.auth.schemas import (
     Code,
     AuthTokens,
+    RegisterUserData,
     YandexUserData,
     TokenInfo,
 )
@@ -15,6 +16,7 @@ from backend.src.auth.services import Service
 from backend.src.auth.dependencies import (
     get_current_active_user,
     get_current_auth_user_from_refresh,
+    validate_login_user,
 )
 from backend.src.auth.utils import REFRESH_TOKEN_COOKIE
 from backend.src.config import config
@@ -48,7 +50,7 @@ async def get_yandex_oauth_url():
                 в куках (refresh) и в Authorization: Bearer (access)",
     response_model=TokenInfo,
 )
-async def handle_code(
+async def auth_yandex_issue_jwt(
     response: Response,
     code: Code,
     session: AsyncSession = Depends(get_async_session),
@@ -76,7 +78,7 @@ async def handle_code(
 
 
 @router.post(
-    "/yandex/refresh",
+    "/refresh",
     summary="Обновить access токен",
     description="Обновляется access токен по refresh токену",
     response_model=TokenInfo,
@@ -98,3 +100,46 @@ async def auth_refresh_jwt(
 )
 async def auth_user(user: UserSchema = Depends(get_current_active_user)):
     return user
+
+
+@router.post(
+    "/register",
+    summary="Регистрация нового пользователя",
+    description="Регистрирует нового пользователя, получает его данные, \
+                 хеширует пароль, сохраняет в БД",
+    response_model=UserSchema
+)
+async def default_register_user(
+    user_data: RegisterUserData = Form(),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = Service(session)
+    user: UserSchema = await service.register_user(user_data)
+    return user
+
+
+@router.post(
+    "/login",
+    summary="Авторизация пользователя, выдача токенов",
+    description="Авторизует пользователя по email и паролю, \
+        выдаёт access и refresh токен",
+    response_model=TokenInfo
+)
+async def auth_user_issue_jwt(
+    response: Response,
+    user: UserSchema = Depends(validate_login_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = Service(session)
+    access_token, refresh_token = await service.create_tokens(user)
+
+    response.set_cookie(
+        key=REFRESH_TOKEN_COOKIE,
+        value=refresh_token,
+        path="/",
+        httponly=True,
+        secure=config.cookies.HTTPS_TRUE,
+        samesite="lax",
+    )
+
+    return TokenInfo(access_token=access_token)

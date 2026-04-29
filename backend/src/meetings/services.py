@@ -1,12 +1,15 @@
 from typing import TYPE_CHECKING
 
+from fastapi import HTTPException, status
+
 from backend.src.users.schemas import UserSchema
-from .infrastructure import Infrastructure
-from .schemas import MeetResponse, MeetCreate, SlotsUser
+from backend.src.meetings.infrastructure import Infrastructure
+from backend.src.meetings.schemas import MeetResponse, MeetCreate, SlotsUser
 
 if TYPE_CHECKING:
     from uuid import UUID
     from sqlalchemy.ext.asyncio import AsyncSession
+    from backend.src.meetings.models import Meetings
 
 
 class Service:
@@ -14,72 +17,60 @@ class Service:
         self.repository = Infrastructure(session)
 
     async def get_meeting(self, hash: UUID):
-        orm_meeting = await self.repository.get_meeting(hash)
-
-        # Теперь здесь нужно добавить проврку user_id
-        slots = [
-            SlotsUser(name=key, slots=value)
-            for slot in orm_meeting.slots
-            for key, value in slot.items()
-            if key != "user_id"  # Исключаем user_id из слотов
-        ]
-
-        pydantic_meeting = MeetResponse(
-            name=orm_meeting.name,
-            description=orm_meeting.description,
-            link=orm_meeting.link,
-            duration=orm_meeting.duration,
-            dataRange=orm_meeting.data_range,
-            hash=orm_meeting.id,
-            slots=slots,
-        )
-
-        return pydantic_meeting
+        meeting: Meetings = await self.repository.get_meeting(hash)
+        meeting: MeetResponse = MeetResponse.model_validate(meeting)
+        return meeting
 
     async def create_meeting(
         self, meeting: MeetCreate, user: UserSchema | None
     ) -> MeetResponse:
-        orm_meeting = await self.repository.create_meeting(meeting, user)
-        pydantic_meeting = MeetResponse.model_validate(orm_meeting)
-        return pydantic_meeting
+        meeting: Meetings = await self.repository.create_meeting(meeting, user)
+        meeting: MeetResponse = MeetResponse.model_validate(meeting)
+        return meeting
 
     async def edit_meeting(
         self, hash: UUID, meeting: MeetCreate, user: UserSchema | None
     ) -> MeetResponse:
-        orm_meeting = await self.repository.edit_meeting(hash, meeting, user)
-        slots = [
-            SlotsUser(name=key, slots=value)
-            for slot in orm_meeting.slots
-            for key, value in slot.items()
-            if key != "user_id"  # Исключаем user_id из слотов
-        ]
 
-        pydantic_meeting = MeetResponse(
-            name=orm_meeting.name,
-            description=orm_meeting.description,
-            link=orm_meeting.link,
-            duration=orm_meeting.duration,
-            dataRange=orm_meeting.data_range,
-            hash=orm_meeting.id,
-            slots=slots,
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="You must be authenticated to edit this meeting",
+            )
+
+        meeting: Meetings = await self.repository.edit_meeting(
+            hash, meeting, user
         )
-
-        return pydantic_meeting
+        meeting: MeetResponse = MeetResponse.model_validate(meeting)
+        return {"detail": "Meeting edited successfully"}
 
     async def add_slots(
         self, hash: UUID, slots: SlotsUser, user: UserSchema | None
     ):
         await self.repository.add_slots(hash, slots.name, slots.slots, user)
-        return slots
+        return {"detail": "Slots added successfully"}
 
     async def edit_slots(
         self, hash: UUID, slots: SlotsUser, user: UserSchema | None
     ):
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="You must be authenticated to edit slots",
+            )
+
         await self.repository.edit_slots(hash, slots.name, slots.slots, user)
-        return slots
+        return {"detail": "Slots edited successfully"}
 
     async def delete_slots_of_user(
         self, hash: UUID, username: str, user: UserSchema | None
     ):
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="You must be authenticated to delete slots",
+            )
+
         await self.repository.delete_slots_of_user(hash, username, user)
         return {"detail": "Slots deleted successfully"}

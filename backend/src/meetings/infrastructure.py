@@ -3,12 +3,7 @@ from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from fastapi import HTTPException
-from starlette.status import (
-    HTTP_404_NOT_FOUND,
-    HTTP_403_FORBIDDEN,
-    HTTP_401_UNAUTHORIZED,
-)
+from fastapi import HTTPException, status
 
 from backend.src.meetings.repositories import Repository
 from backend.src.meetings.models import Meetings
@@ -32,12 +27,30 @@ class Infrastructure(Repository):
 
         return cached_user
 
-    async def get_meeting(self, id: UUID) -> Optional[Meetings]:
+    async def _get_meeting_with_participants(self, id: UUID) -> Meetings:
+        query: Select = (
+            select(Meetings)
+            .options(selectinload(Meetings.participants))
+            .where(Meetings.id == id)
+        )
+        result: AsyncResult = await self.session.execute(query)
+        meeting: Meetings = result.scalar_one_or_none()
+
+        if not meeting:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Meeting not found",
+            )
+
+        return meeting
+
+    async def get_meeting(self, id: UUID) -> Meetings:
         record: Meetings | None = await self.session.get(Meetings, id)
 
         if not record:
             raise HTTPException(
-                status_code=HTTP_404_NOT_FOUND, detail="Meeting not found"
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Meeting not found",
             )
 
         return record
@@ -65,18 +78,13 @@ class Infrastructure(Repository):
 
         if not record:
             raise HTTPException(
-                status_code=HTTP_404_NOT_FOUND, detail="Meeting not found"
-            )
-
-        if not user:
-            raise HTTPException(
-                status_code=HTTP_401_UNAUTHORIZED,
-                detail="You must be authenticated to edit this meeting",
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Meeting not found",
             )
 
         if record.owner_id != user.id:
             raise HTTPException(
-                status_code=HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_403_FORBIDDEN,
                 detail="You are not the owner of this meeting",
             )
 
@@ -90,18 +98,7 @@ class Infrastructure(Repository):
     async def add_slots(
         self, id: UUID, name: str, slots: list, user: UserSchema | None
     ):
-        query: Select = (
-            select(Meetings)
-            .options(selectinload(Meetings.participants))
-            .where(Meetings.id == id)
-        )
-        result: AsyncResult = await self.session.execute(query)
-        meeting: Meetings = result.scalar_one_or_none()
-
-        if not meeting:
-            raise HTTPException(
-                status_code=HTTP_404_NOT_FOUND, detail="Meeting not found"
-            )
+        meeting: Meetings = await self._get_meeting_with_participants(id)
 
         if user:
             # Достаем пользователя из словаря сессии
@@ -109,7 +106,7 @@ class Infrastructure(Repository):
 
             if cached_user in meeting.participants:
                 raise HTTPException(
-                    status_code=HTTP_403_FORBIDDEN,
+                    status_code=status.HTTP_403_FORBIDDEN,
                     detail="You have already added slots for this meeting",
                 )
             meeting.participants.append(cached_user)
@@ -128,31 +125,14 @@ class Infrastructure(Repository):
     async def edit_slots(
         self, id: UUID, name: str, slots: list, user: UserSchema | None
     ):
-        query: Select = (
-            select(Meetings)
-            .options(selectinload(Meetings.participants))
-            .where(Meetings.id == id)
-        )
-        result: AsyncResult = await self.session.execute(query)
-        meeting: Meetings = result.scalar_one_or_none()
-
-        if not meeting:
-            raise HTTPException(
-                status_code=HTTP_404_NOT_FOUND, detail="Meeting not found"
-            )
-
-        if not user:
-            raise HTTPException(
-                status_code=HTTP_401_UNAUTHORIZED,
-                detail="You must be authenticated to edit slots",
-            )
+        meeting: Meetings = await self._get_meeting_with_participants(id)
 
         # Достаем пользователя из словаря сессии
         cached_user = await self._get_cached_user(user)
 
         if cached_user not in meeting.participants:
             raise HTTPException(
-                status_code=HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_403_FORBIDDEN,
                 detail="You are not a participant of this meeting",
             )
 
@@ -164,7 +144,7 @@ class Infrastructure(Repository):
                 break
         else:
             raise HTTPException(
-                status_code=HTTP_404_NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail="Slots for this user not found in this meeting",
             )
 
@@ -178,53 +158,36 @@ class Infrastructure(Repository):
     async def delete_slots_of_user(
         self, id: UUID, username: str, user: UserSchema | None
     ):
-        query: Select = (
-            select(Meetings)
-            .options(selectinload(Meetings.participants))
-            .where(Meetings.id == id)
-        )
-        result: AsyncResult = await self.session.execute(query)
-        meeting: Meetings = result.scalar_one_or_none()
-
-        if not meeting:
-            raise HTTPException(
-                status_code=HTTP_404_NOT_FOUND, detail="Meeting not found"
-            )
-
-        if not user:
-            raise HTTPException(
-                status_code=HTTP_401_UNAUTHORIZED,
-                detail="You must be authenticated to delete slots",
-            )
+        meeting: Meetings = await self._get_meeting_with_participants(id)
 
         if user.id != meeting.owner_id:
             raise HTTPException(
-                status_code=HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_403_FORBIDDEN,
                 detail="You are not the owner of this meeting",
             )
 
         current_slots = meeting.slots.copy() if meeting.slots else []
 
         for slot in current_slots:
-            for key, _ in slot.items():
-                if key == username:
-                    current_slots.remove(slot)
-                    # По сути, здесь уже точно у slot должен быть user_id
-                    if user := await self.session.get(Users, slot["user_id"]):
-                        if user in meeting.participants:
-                            meeting.participants.remove(user)
-                    elif slot["user_id"] is not None:
-                        raise HTTPException(
-                            status_code=HTTP_404_NOT_FOUND,
-                            detail="User not found",
-                        )
-                    break
-            else:
-                continue
-            break
+            if username in slot:
+                current_slots.remove(slot)
+                if (slot["user_id"] is not None) and (
+                    user := await self.session.get(Users, slot["user_id"])
+                ):
+                    meeting.participants.remove(user)
+                # Такого по сути быть не может, но оставил потому что это поле
+                # хранится в JSONB и если пользователь удалится,
+                # то может остаться "мертвый" user_id в слотах,
+                # который будет мешать удалению слотов
+                elif user is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="User not found",
+                    )
+                break
         else:
             raise HTTPException(
-                status_code=HTTP_404_NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail="Slots for this user not found in this meeting",
             )
 

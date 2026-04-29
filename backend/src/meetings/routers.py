@@ -47,7 +47,6 @@ async def create_meeting(
 # Это только для зарегистрированных пользователей
 @router.patch(
     "/{hash}",
-    response_model=MeetResponse,
     summary="Редактировать встречу",
     description="Отправляет полное описание встречи, \
         то есть измененные и не измененные",
@@ -64,7 +63,6 @@ async def edit_meeting(
 
 @router.patch(
     "/{hash}/slots",
-    response_model=SlotsUser,
     summary="Отправить слоты, выбранные пользователем",
     description="Отправляет слоты встречи, которые выбрал \
                 пользователь",
@@ -82,7 +80,6 @@ async def add_slots(
 # Это только для зарегистрированных пользователей
 @router.patch(
     "/{hash}/slots/edit",
-    response_model=SlotsUser,
     summary="Отредактировать слоты, выбранные пользователем",
     description="Отправляет отредактированные слоты встречи, \
                 которые выбрал пользователь",

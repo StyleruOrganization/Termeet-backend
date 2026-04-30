@@ -23,7 +23,7 @@ class MeetCreate(Meet):
 
 
 class MeetResponse(Meet):
-    hash: UUID = Field(alias="id")
+    hash: UUID = Field(validation_alias="id")
     slots: list[SlotsUser] = []
 
     @field_validator("slots", mode="before")

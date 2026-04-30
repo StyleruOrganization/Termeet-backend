@@ -71,22 +71,8 @@ class Infrastructure(Repository):
         return object
 
     async def edit_meeting(
-        self, id: UUID, meeting: MeetCreate, user: UserSchema | None
+        self, record: Meetings, meeting: MeetCreate
     ) -> Optional[Meetings]:
-
-        record: Meetings | None = await self.session.get(Meetings, id)
-
-        if not record:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Meeting not found",
-            )
-
-        if record.owner_id != user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You are not the owner of this meeting",
-            )
 
         for key, value in meeting.model_dump().items():
             setattr(record, key, value)

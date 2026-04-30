@@ -32,16 +32,27 @@ class Service:
         self, hash: UUID, meeting: MeetCreate, user: UserSchema | None
     ) -> MeetResponse:
 
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="You must be authenticated to edit this meeting",
-            )
+        record: Meetings = await self.repository.get_meeting(hash)
 
-        meeting: Meetings = await self.repository.edit_meeting(
-            hash, meeting, user
-        )
-        meeting: MeetResponse = MeetResponse.model_validate(meeting)
+        if record.owner_id is not None:
+
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="You must be authenticated to edit slots",
+                )
+
+            if record.owner_id != user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You do not have permission to edit this meeting",
+                )
+
+            await self.repository.edit_meeting(record, meeting)
+        else:
+            meeting.dataRange = record.data_range
+            await self.repository.edit_meeting(record, meeting)
+
         return {"detail": "Meeting edited successfully"}
 
     async def add_slots(

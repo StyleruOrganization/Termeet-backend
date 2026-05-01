@@ -4,14 +4,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SlotsUser(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1, max_length=128)
     slots: list[list[str]]
 
 
 class Meet(BaseModel):
-    name: str
-    description: str | None = None
-    link: str | None = None
+    name: str = Field(..., min_length=1, max_length=128)
+    description: str | None = Field(None, max_length=400)
+    link: str | None = Field(None, max_length=128)
     duration: str | None = None
     dataRange: list[list[str]] = Field(alias="data_range")
 

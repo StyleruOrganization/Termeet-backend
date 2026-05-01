@@ -1,10 +1,10 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, EmailStr
 
 from backend.src.auth.utils import hash_password
 
 
 class Code(BaseModel):
-    code: str
+    code: str = Field(..., min_length=1, max_length=128)
 
 
 class AuthTokens(BaseModel):
@@ -28,10 +28,10 @@ class YandexUserData(BaseModel):
 
 
 class RegisterUserData(BaseModel):
-    first_name: str
-    last_name: str
-    email: str
-    password: str
+    first_name: str = Field(..., min_length=1, max_length=128)
+    last_name: str = Field(..., min_length=1, max_length=128)
+    email: EmailStr = Field(..., max_length=128)
+    password: str = Field(..., min_length=6, max_length=128)
 
 
 class UserData(BaseModel):

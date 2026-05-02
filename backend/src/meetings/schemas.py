@@ -26,6 +26,10 @@ class MeetCreate(Meet):
 class MeetResponse(Meet):
     hash: UUID = Field(validation_alias="id")
     slots: list[SlotsUser] = []
+    is_creator: bool | None = Field(None, serialization_alias="isCreator")
+    is_creator_auth: bool | None = Field(
+        None, serialization_alias="isCreatorAuth"
+    )
 
     @field_validator("slots", mode="before")
     @classmethod
@@ -36,8 +40,3 @@ class MeetResponse(Meet):
             )
             for slot in slots_db
         ]
-
-
-class CheckAccessRights(BaseModel):
-    is_creator: bool
-    is_creator_auth: bool

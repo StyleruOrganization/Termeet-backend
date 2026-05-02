@@ -32,6 +32,7 @@ async def get_meeting(
 @router.post(
     "/create",
     response_model=MeetResponse,
+    response_model_exclude_none=True,
     summary="Создать встречу",
     description="Создает слоты для встречи по определенным дням \
                 и промежутку времени",
@@ -46,7 +47,6 @@ async def create_meeting(
     return await service.create_meeting(meeting, user)
 
 
-# Это только для зарегистрированных пользователей
 @router.patch(
     "/{hash}",
     summary="Редактировать встречу",
@@ -79,7 +79,6 @@ async def add_slots(
     return await service.add_slots(hash, slots, user)
 
 
-# Это только для зарегистрированных пользователей
 @router.patch(
     "/{hash}/slots/edit",
     summary="Отредактировать слоты, выбранные пользователем",

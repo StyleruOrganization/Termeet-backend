@@ -7,7 +7,7 @@ from backend.src.meetings.infrastructure import Infrastructure
 from backend.src.meetings.schemas import (
     MeetResponse,
     MeetCreate,
-    SlotsUser
+    SlotsUser,
 )
 
 if TYPE_CHECKING:
@@ -24,8 +24,18 @@ class Service:
         self, hash: UUID, user: UserSchema | None
     ) -> MeetResponse:
         record: Meetings = await self.repository.get_meeting(hash)
-
         meeting: MeetResponse = MeetResponse.model_validate(record)
+
+        if record.owner_id is not None:
+            meeting.is_creator_auth = True
+        else:
+            meeting.is_creator_auth = False
+
+        if user and record.owner_id == user.id:
+            meeting.is_creator = True
+        else:
+            meeting.is_creator = False
+
         return meeting
 
     async def create_meeting(
@@ -37,7 +47,7 @@ class Service:
 
     async def edit_meeting(
         self, hash: UUID, meeting: MeetCreate, user: UserSchema | None
-    ) -> MeetResponse:
+    ):
 
         record: Meetings = await self.repository.get_meeting(hash)
 

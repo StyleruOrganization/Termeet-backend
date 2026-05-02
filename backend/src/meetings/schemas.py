@@ -4,7 +4,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SlotsUser(BaseModel):
-    name: str = Field(..., min_length=1, max_length=128)
+    name: str = Field(min_length=1, max_length=128)
+    user_id: UUID | None = Field(None, alias="userId")
     slots: list[list[str]]
 
 
@@ -28,10 +29,15 @@ class MeetResponse(Meet):
 
     @field_validator("slots", mode="before")
     @classmethod
-    def validate_slots(cls, value):
+    def validate_slots(cls, slots_db):
         return [
-            SlotsUser(name=key, slots=value)
-            for slot in value
-            for key, value in slot.items()
-            if key != "user_id"
+            SlotsUser(
+                name=slot["name"], userId=slot["user_id"], slots=slot["slots"]
+            )
+            for slot in slots_db
         ]
+
+
+class CheckAccessRights(BaseModel):
+    is_creator: bool
+    is_creator_auth: bool

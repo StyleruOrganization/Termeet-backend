@@ -77,6 +77,8 @@ class Infrastructure(Repository):
         for key, value in meeting.model_dump().items():
             setattr(record, key, value)
 
+        record.data_range = meeting.dataRange
+
         self.session.add(record)
         await self.session.flush()
         return record
@@ -91,7 +93,9 @@ class Infrastructure(Repository):
         current_slots = meeting.slots.copy() if meeting.slots else []
 
         current_slots.append(
-            {name: slots, "user_id": str(user.id) if user else None}
+            {"name": name,
+             "slots": slots,
+             "user_id": str(user.id) if user else None}
         )
 
         meeting.slots = current_slots
@@ -125,7 +129,11 @@ class Infrastructure(Repository):
                 detail="Slots for this user not found in this meeting",
             )
 
-        current_slots.append({name: slots, "user_id": str(user.id)})
+        current_slots.append(
+            {"name": name,
+             "slots": slots,
+             "user_id": str(user.id) if user else None}
+        )
 
         meeting.slots = current_slots
 
@@ -146,8 +154,8 @@ class Infrastructure(Repository):
         current_slots = meeting.slots.copy() if meeting.slots else []
 
         for slot in current_slots:
-            if username in slot:
-                current_slots.remove(slot)
+            if username == slot["name"]:
+
                 if (slot["user_id"] is not None) and (
                     user := await self.session.get(Users, slot["user_id"])
                 ):
@@ -161,6 +169,8 @@ class Infrastructure(Repository):
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail="User not found",
                     )
+
+                current_slots.remove(slot)
                 break
         else:
             raise HTTPException(

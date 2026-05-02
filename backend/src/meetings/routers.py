@@ -21,10 +21,12 @@ router = APIRouter(prefix="/meet", tags=["Meet"])
                 а также уже выбранные участниками",
 )
 async def get_meeting(
-    hash: UUID, session: AsyncSession = Depends(get_async_session)
+    hash: UUID,
+    session: AsyncSession = Depends(get_async_session),
+    user: UserSchema | None = Depends(get_current_active_user),
 ) -> MeetResponse:
     service = Service(session)
-    return await service.get_meeting(hash)
+    return await service.get_meeting(hash, user)
 
 
 @router.post(

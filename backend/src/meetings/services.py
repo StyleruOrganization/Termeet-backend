@@ -4,7 +4,11 @@ from fastapi import HTTPException, status
 
 from backend.src.users.schemas import UserSchema
 from backend.src.meetings.infrastructure import Infrastructure
-from backend.src.meetings.schemas import MeetResponse, MeetCreate, SlotsUser
+from backend.src.meetings.schemas import (
+    MeetResponse,
+    MeetCreate,
+    SlotsUser
+)
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -16,9 +20,12 @@ class Service:
     def __init__(self, session: AsyncSession = None):
         self.repository = Infrastructure(session)
 
-    async def get_meeting(self, hash: UUID):
-        meeting: Meetings = await self.repository.get_meeting(hash)
-        meeting: MeetResponse = MeetResponse.model_validate(meeting)
+    async def get_meeting(
+        self, hash: UUID, user: UserSchema | None
+    ) -> MeetResponse:
+        record: Meetings = await self.repository.get_meeting(hash)
+
+        meeting: MeetResponse = MeetResponse.model_validate(record)
         return meeting
 
     async def create_meeting(
@@ -36,13 +43,7 @@ class Service:
 
         if record.owner_id is not None:
 
-            if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="You must be authenticated to edit slots",
-                )
-
-            if record.owner_id != user.id:
+            if not user or record.owner_id != user.id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="You do not have permission to edit this meeting",
@@ -72,13 +73,7 @@ class Service:
                     detail="You have already added slots for this meeting",
                 )
 
-        all_names_of_meeting = [
-            slot_name
-            for slot in record.slots
-            for slot_name, _ in slot.items()
-            if slot_name != "user_id"
-        ]
-        if slots.name in all_names_of_meeting:
+        if slots.name in [slot["name"] for slot in record.slots]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="A slot with this name already exists for this meeting",

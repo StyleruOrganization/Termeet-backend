@@ -58,7 +58,23 @@ class Service:
     async def add_slots(
         self, hash: UUID, slots: SlotsUser, user: UserSchema | None
     ):
-        await self.repository.add_slots(hash, slots.name, slots.slots, user)
+        record: Meetings = await self.repository.get_meeting_with_participants(
+            hash
+        )
+
+        if user:
+            # Достаем пользователя из словаря сессии
+            user = await self.repository.get_cached_user(user)
+
+            if user in record.participants:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You have already added slots for this meeting",
+                )
+
+        await self.repository.add_slots(
+            slots.name, slots.slots, record, user
+        )
         return {"detail": "Slots added successfully"}
 
     async def edit_slots(

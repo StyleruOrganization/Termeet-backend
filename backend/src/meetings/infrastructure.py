@@ -21,13 +21,13 @@ class Infrastructure(Repository):
     def __init__(self, session: AsyncSession):
         super().__init__(session)
 
-    async def _get_cached_user(self, user: UserSchema) -> Optional[Users]:
+    async def get_cached_user(self, user: UserSchema) -> Optional[Users]:
         user_cache = self.session.info.get("user_cache", {})
         cached_user: Users = user_cache.get(user.id)
 
         return cached_user
 
-    async def _get_meeting_with_participants(self, id: UUID) -> Meetings:
+    async def get_meeting_with_participants(self, id: UUID) -> Meetings:
         query: Select = (
             select(Meetings)
             .options(selectinload(Meetings.participants))
@@ -63,7 +63,7 @@ class Infrastructure(Repository):
 
         if user:
             # Достаем пользователя из словаря сессии
-            cached_user = await self._get_cached_user(user)
+            cached_user = await self.get_cached_user(user)
             object.owner = cached_user
 
         self.session.add(object)
@@ -82,20 +82,11 @@ class Infrastructure(Repository):
         return record
 
     async def add_slots(
-        self, id: UUID, name: str, slots: list, user: UserSchema | None
+        self, name: str, slots: list, meeting: Meetings, user: Users | None
     ):
-        meeting: Meetings = await self._get_meeting_with_participants(id)
 
         if user:
-            # Достаем пользователя из словаря сессии
-            cached_user = await self._get_cached_user(user)
-
-            if cached_user in meeting.participants:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You have already added slots for this meeting",
-                )
-            meeting.participants.append(cached_user)
+            meeting.participants.append(user)
 
         current_slots = meeting.slots.copy() if meeting.slots else []
 
@@ -111,10 +102,10 @@ class Infrastructure(Repository):
     async def edit_slots(
         self, id: UUID, name: str, slots: list, user: UserSchema | None
     ):
-        meeting: Meetings = await self._get_meeting_with_participants(id)
+        meeting: Meetings = await self.get_meeting_with_participants(id)
 
         # Достаем пользователя из словаря сессии
-        cached_user = await self._get_cached_user(user)
+        cached_user = await self.get_cached_user(user)
 
         if cached_user not in meeting.participants:
             raise HTTPException(
@@ -144,7 +135,7 @@ class Infrastructure(Repository):
     async def delete_slots_of_user(
         self, id: UUID, username: str, user: UserSchema | None
     ):
-        meeting: Meetings = await self._get_meeting_with_participants(id)
+        meeting: Meetings = await self.get_meeting_with_participants(id)
 
         if user.id != meeting.owner_id:
             raise HTTPException(

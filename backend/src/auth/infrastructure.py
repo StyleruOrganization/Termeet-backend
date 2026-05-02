@@ -16,11 +16,15 @@ class Infrastructure(Repository):
         super().__init__(session)
 
     async def register_user(self, user: UserData) -> Users:
-        object = Users(
-            first_name=user.first_name,
-            last_name=user.last_name,
-            email=user.email,
-            additional_emails=user.additional_emails,
+        object: Users = Users(
+            **user.model_dump(
+                exclude={
+                    "first_name",
+                    "last_name",
+                    "email",
+                    "additional_emails",
+                }
+            )
         )
 
         if user.provider == "DEFAULT":
@@ -49,13 +53,9 @@ class Infrastructure(Repository):
         return result.scalar_one_or_none()
 
     async def check_user_in_db_by_id(self, id: UUID) -> Users | None:
-        # Думаю, что можно сделать проверку быстрее, не доставая целый объект
-        query = select(Users).where(Users.id == id)
-        result = await self.session.execute(query)
-        return result.scalar_one_or_none()
+        return await self.session.get(Users, id)
 
     async def check_user_in_db_by_email(self, email: str) -> Users | None:
-        # Думаю, что можно сделать проверку быстрее, не доставая целый объект
         query = select(Users).where(Users.email == email)
         result = await self.session.execute(query)
         return result.scalar_one_or_none()

@@ -133,3 +133,19 @@ async def auth_user_issue_jwt(
     )
 
     return TokenInfo(access_token=access_token)
+
+
+@router.post(
+    "/logout",
+    summary="Выход пользователя из системы",
+    description="Удаляет refresh токен из куки, тем самым \
+                 разлогинивая пользователя. Access токен \
+                 удаляется на клиенте",
+
+)
+async def logout_user(response: Response):
+    response.delete_cookie(
+        key=REFRESH_TOKEN_COOKIE,
+        path="/",
+    )
+    return {"detail": "Successfully logged out"}

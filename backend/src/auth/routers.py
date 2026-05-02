@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.src.schemas import ErrorResponse
 from backend.src.dependencies import get_async_session
 from backend.src.users.schemas import UserSchema
 from backend.src.auth.schemas import (
@@ -48,6 +49,16 @@ async def get_yandex_oauth_url():
                 запись в БД, выдача токенов, которые отсылаются \
                 в куках (refresh) и в Authorization: Bearer (access)",
     response_model=TokenInfo,
+    responses={
+        401: {
+            "description": "Не валидный code от Яндекса",
+            "model": ErrorResponse
+        },
+        400: {
+            "description": "Пользователь с эти email-ом уже существует",
+            "model": ErrorResponse
+        },
+    }
 )
 async def auth_yandex_issue_jwt(
     response: Response,
@@ -81,6 +92,13 @@ async def auth_yandex_issue_jwt(
     summary="Обновить access токен",
     description="Обновляется access токен по refresh токену",
     response_model=TokenInfo,
+    responses={
+        401: {
+            "description": "Срок действия refresh-токена истек \
+                Не правильный тип токена",
+            "model": ErrorResponse
+        },
+    }
 )
 async def auth_refresh_jwt(
     user: UserSchema = Depends(get_current_auth_user_from_refresh),
@@ -98,6 +116,12 @@ async def auth_refresh_jwt(
     description="Регистрирует нового пользователя, получает его данные, \
                  хеширует пароль, сохраняет в БД",
     response_model=UserSchema,
+    responses={
+        401: {
+            "description": "Пользователь с эти email-ом уже существует",
+            "model": ErrorResponse
+        },
+    }
 )
 async def default_register_user(
     user_data: RegisterUserData = Form(),
@@ -114,6 +138,16 @@ async def default_register_user(
     description="Авторизует пользователя по email и паролю, \
         выдаёт access и refresh токен",
     response_model=TokenInfo,
+    responses={
+        401: {
+            "description": "Не верный логин или пароль",
+            "model": ErrorResponse
+        },
+        403: {
+            "description": "Пользователь заблокирован",
+            "model": ErrorResponse
+        },
+    }
 )
 async def auth_user_issue_jwt(
     response: Response,

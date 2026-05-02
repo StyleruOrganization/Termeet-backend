@@ -78,7 +78,7 @@ async def get_user_by_token_sub(payload: dict, session: AsyncSession):
         return user
 
     raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
+        status_code=status.HTTP_404_NOT_FOUND,
         detail="User not found",
     )
 

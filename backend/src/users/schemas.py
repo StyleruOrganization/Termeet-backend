@@ -8,6 +8,7 @@ class UserSchema(BaseModel):
     id: UUID
     first_name: str
     last_name: str
+    nickname: Optional[str]
     is_active: bool
     email: str
     additional_emails: Optional[list]

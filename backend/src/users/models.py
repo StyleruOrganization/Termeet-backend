@@ -2,7 +2,7 @@ from uuid import uuid4, UUID
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, ARRAY
+from sqlalchemy import Computed, String, ARRAY
 
 from backend.src.models import Base
 
@@ -18,6 +18,8 @@ class Users(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     first_name: Mapped[str] = mapped_column(String(50), nullable=False)
     last_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    nickname: Mapped[Optional[str]] = mapped_column(
+        String(50), Computed("first_name"))
     is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
     email: Mapped[Optional[str]] = mapped_column(unique=True, index=True)
     additional_emails: Mapped[Optional[list[str]]] = mapped_column(

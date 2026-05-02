@@ -14,7 +14,7 @@ from backend.src.auth.utils import (
     TOKEN_TYPE_FIELD,
     ACCESS_TOKEN_TYPE,
     REFRESH_TOKEN_TYPE,
-    REFRESH_TOKEN_COOKIE
+    REFRESH_TOKEN_COOKIE,
 )
 from backend.src.dependencies import get_async_session
 from backend.src.users.schemas import UserSchema
@@ -25,7 +25,7 @@ http_bearer = HTTPBearer(auto_error=False)
 
 
 async def _get_current_access_token_payload(
-        credentials: HTTPAuthorizationCredentials = Depends(http_bearer)
+    credentials: HTTPAuthorizationCredentials = Depends(http_bearer),
 ):
     if not credentials:
         return None
@@ -37,21 +37,21 @@ async def _get_current_access_token_payload(
     except InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid token error (access token is expired)"
+            detail="invalid token error (access token is expired)",
         )
 
     return payload
 
 
 async def _get_current_refresh_token_payload(
-        refresh_token: str = Cookie(alias=REFRESH_TOKEN_COOKIE)
+    refresh_token: str = Cookie(alias=REFRESH_TOKEN_COOKIE),
 ) -> dict:
     try:
         payload = await decode_jwt(token=refresh_token)
     except InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid token error (refresh token is expired)"
+            detail="invalid token error (refresh token is expired)",
         )
 
     return payload
@@ -62,7 +62,7 @@ async def validate_token_type(payload: dict, token_type: str):
     if current_token_type != token_type:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid token type"
+            detail="invalid token type",
         )
 
 
@@ -70,13 +70,16 @@ async def get_user_by_token_sub(payload: dict, session: AsyncSession):
     user_id: UUID | None = UUID(payload.get("sub"))
 
     repository = Infrastructure(session)
+
     if user := (await repository.check_user_in_db_by_id(user_id)):
+        # Сохраняю объект в словаре сессии, чтобы не делать повторный запрос😎
+        session.info.setdefault("user_cache", {})[user_id] = user
         user: UserSchema = UserSchema.model_validate(user)
         return user
 
     raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="token invalid (user not found)"
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="User not found",
     )
 
 
@@ -88,8 +91,8 @@ def get_auth_user_from_token_of_type(token_type: str):
         current_function_of_token_payload = _get_current_refresh_token_payload
 
     async def get_auth_user_from_token(
-            payload: dict | None = Depends(current_function_of_token_payload),
-            session: AsyncSession = Depends(get_async_session)
+        payload: dict | None = Depends(current_function_of_token_payload),
+        session: AsyncSession = Depends(get_async_session),
     ):
         if not payload:
             return None
@@ -111,23 +114,22 @@ get_current_auth_user_from_refresh = get_auth_user_from_token_of_type(
 
 
 async def get_current_active_user(
-        user: UserSchema | None = Depends(_get_current_auth_user_from_access)
+    user: UserSchema | None = Depends(_get_current_auth_user_from_access),
 ):
     if not user:
         return None
 
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="user inactive"
+            status_code=status.HTTP_403_FORBIDDEN, detail="user inactive"
         )
 
     return user
 
 
 async def validate_login_user(
-        user_data: LoginUserData = Form(),
-        session: AsyncSession = Depends(get_async_session),
+    user_data: LoginUserData = Form(),
+    session: AsyncSession = Depends(get_async_session),
 ):
     repository = Infrastructure(session)
 
@@ -136,27 +138,24 @@ async def validate_login_user(
     ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid email or password"
+            detail="invalid email or password",
         )
 
-    # Если у юзера нет пароля, значит он регался через OAuth,
-    # и по этому не может залогиниться через форму
     if not user.password_hash:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid email or password"
+            detail="invalid email or password",
         )
 
     if not (await validate_password(user_data.password, user.password_hash)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid email or password"
+            detail="invalid email or password",
         )
 
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="user inactive"
+            status_code=status.HTTP_403_FORBIDDEN, detail="user inactive"
         )
 
     user: UserSchema = UserSchema.model_validate(user)

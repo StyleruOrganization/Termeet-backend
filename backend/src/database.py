@@ -1,6 +1,4 @@
-from sqlalchemy.ext.asyncio import (
-    async_sessionmaker, create_async_engine
-)
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from backend.src.config import config
 

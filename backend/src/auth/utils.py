@@ -1,7 +1,8 @@
-import bcrypt
+import asyncio
 from datetime import timedelta, datetime, UTC
 
 import jwt
+import bcrypt
 
 from backend.src.config import config
 
@@ -25,7 +26,7 @@ async def create_jwt_token(
     return await encode_jwt(
         jwt_payload,
         expire_minutes=expire_minutes,
-        expire_timedelta=expire_timedelta
+        expire_timedelta=expire_timedelta,
     )
 
 
@@ -44,7 +45,9 @@ async def encode_jwt(
         expire = now_utc + timedelta(minutes=expire_minutes)
     to_encode.update(exp=expire, iat=now_utc)
 
-    encoded = jwt.encode(to_encode, private_key, algorithm=algorithm)
+    encoded = await asyncio.to_thread(
+        jwt.encode, to_encode, private_key, algorithm=algorithm
+    )
     return encoded
 
 
@@ -53,17 +56,20 @@ async def decode_jwt(
     public_key: str = config.auth_jwt.PUBLIC_KEY_PATH.read_text(),
     algorithm: str = config.auth_jwt.ALGORITHM,
 ):
-    decoded = jwt.decode(token, public_key, algorithms=[algorithm])
+    decoded = await asyncio.to_thread(
+        jwt.decode, token, public_key, algorithms=[algorithm]
+    )
     return decoded
 
 
 async def hash_password(password: str) -> bytes:
     salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode(), salt)
+    return await asyncio.to_thread(bcrypt.hashpw, password.encode(), salt)
 
 
 async def validate_password(password: str, hashed_password: bytes) -> bool:
-    return bcrypt.checkpw(
-        password=password.encode(),
-        hashed_password=hashed_password,
+    return await asyncio.to_thread(
+        bcrypt.checkpw,
+        password.encode(),
+        hashed_password,
     )

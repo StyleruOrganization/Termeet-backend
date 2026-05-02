@@ -1,19 +1,20 @@
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SlotsUser(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=128)
+    user_id: UUID | None = Field(None, alias="userId")
     slots: list[list[str]]
 
 
 class Meet(BaseModel):
-    name: str
-    description: str | None = None
-    link: str | None = None
+    name: str = Field(..., min_length=1, max_length=128)
+    description: str | None = Field(None, max_length=400)
+    link: str | None = Field(None, max_length=128)
     duration: str | None = None
-    dataRange: list[list[str]] = Field(validation_alias="data_range")
+    dataRange: list[list[str]] = Field(alias="data_range")
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -23,5 +24,19 @@ class MeetCreate(Meet):
 
 
 class MeetResponse(Meet):
-    hash: UUID = Field(validation_alias="id")  # ПРОВЕРЬ
+    hash: UUID = Field(validation_alias="id")
     slots: list[SlotsUser] = []
+    is_creator: bool | None = Field(None, serialization_alias="isCreator")
+    is_creator_auth: bool | None = Field(
+        None, serialization_alias="isCreatorAuth"
+    )
+
+    @field_validator("slots", mode="before")
+    @classmethod
+    def validate_slots(cls, slots_db):
+        return [
+            SlotsUser(
+                name=slot["name"], userId=slot["user_id"], slots=slot["slots"]
+            )
+            for slot in slots_db
+        ]

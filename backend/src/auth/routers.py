@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.src.schemas import ErrorResponse
 from backend.src.dependencies import get_async_session
 from backend.src.users.schemas import UserSchema
 from backend.src.auth.schemas import (
@@ -14,7 +15,6 @@ from backend.src.auth.schemas import (
 )
 from backend.src.auth.services import Service
 from backend.src.auth.dependencies import (
-    get_current_active_user,
     get_current_auth_user_from_refresh,
     validate_login_user,
 )
@@ -49,6 +49,16 @@ async def get_yandex_oauth_url():
                 запись в БД, выдача токенов, которые отсылаются \
                 в куках (refresh) и в Authorization: Bearer (access)",
     response_model=TokenInfo,
+    responses={
+        401: {
+            "description": "Не валидный code от Яндекса",
+            "model": ErrorResponse
+        },
+        400: {
+            "description": "Пользователь с эти email-ом уже существует",
+            "model": ErrorResponse
+        },
+    }
 )
 async def auth_yandex_issue_jwt(
     response: Response,
@@ -62,7 +72,7 @@ async def auth_yandex_issue_jwt(
         tokens.access_token
     )
 
-    user: UserSchema = await service.authentication_user(user_data)
+    user: UserSchema = await service.auth_yandex_user(user_data)
     access_token, refresh_token = await service.create_tokens(user)
 
     response.set_cookie(
@@ -82,6 +92,13 @@ async def auth_yandex_issue_jwt(
     summary="Обновить access токен",
     description="Обновляется access токен по refresh токену",
     response_model=TokenInfo,
+    responses={
+        401: {
+            "description": "Срок действия refresh-токена истек \
+                Не правильный тип токена",
+            "model": ErrorResponse
+        },
+    }
 )
 async def auth_refresh_jwt(
     user: UserSchema = Depends(get_current_auth_user_from_refresh),
@@ -93,21 +110,18 @@ async def auth_refresh_jwt(
     return TokenInfo(access_token=access_token)
 
 
-@router.get(
-    "/users/me",
-    summary="Для теста, потом удалю!",
-    description="Получает юзера из access-токена и проверяет его в БД",
-)
-async def auth_user(user: UserSchema = Depends(get_current_active_user)):
-    return user
-
-
 @router.post(
     "/register",
     summary="Регистрация нового пользователя",
     description="Регистрирует нового пользователя, получает его данные, \
                  хеширует пароль, сохраняет в БД",
-    response_model=UserSchema
+    response_model=UserSchema,
+    responses={
+        401: {
+            "description": "Пользователь с эти email-ом уже существует",
+            "model": ErrorResponse
+        },
+    }
 )
 async def default_register_user(
     user_data: RegisterUserData = Form(),
@@ -123,7 +137,17 @@ async def default_register_user(
     summary="Авторизация пользователя, выдача токенов",
     description="Авторизует пользователя по email и паролю, \
         выдаёт access и refresh токен",
-    response_model=TokenInfo
+    response_model=TokenInfo,
+    responses={
+        401: {
+            "description": "Не верный логин или пароль",
+            "model": ErrorResponse
+        },
+        403: {
+            "description": "Пользователь заблокирован",
+            "model": ErrorResponse
+        },
+    }
 )
 async def auth_user_issue_jwt(
     response: Response,
@@ -143,3 +167,19 @@ async def auth_user_issue_jwt(
     )
 
     return TokenInfo(access_token=access_token)
+
+
+@router.post(
+    "/logout",
+    summary="Выход пользователя из системы",
+    description="Удаляет refresh токен из куки, тем самым \
+                 разлогинивая пользователя. Access токен \
+                 удаляется на клиенте",
+
+)
+async def logout_user(response: Response):
+    response.delete_cookie(
+        key=REFRESH_TOKEN_COOKIE,
+        path="/",
+    )
+    return {"detail": "Successfully logged out"}

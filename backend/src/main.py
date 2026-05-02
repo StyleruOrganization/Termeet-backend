@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.src.meetings.routers import router as meetings_router
 from backend.src.auth.routers import router as auth_router
+from backend.src.users.routers import router as users_router
 from backend.src.lifespan import lifespan
 
 app = FastAPI(
@@ -10,7 +11,7 @@ app = FastAPI(
     version="1.0.0",
     description="API для Termeet",
     root_path="/api",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 origins = [
@@ -30,3 +31,4 @@ app.add_middleware(
 
 app.include_router(meetings_router)
 app.include_router(auth_router)
+app.include_router(users_router)

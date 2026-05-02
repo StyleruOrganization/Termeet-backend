@@ -72,9 +72,19 @@ class Service:
                     detail="You have already added slots for this meeting",
                 )
 
-        await self.repository.add_slots(
-            slots.name, slots.slots, record, user
-        )
+        all_names_of_meeting = [
+            slot_name
+            for slot in record.slots
+            for slot_name, _ in slot.items()
+            if slot_name != "user_id"
+        ]
+        if slots.name in all_names_of_meeting:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A slot with this name already exists for this meeting",
+            )
+
+        await self.repository.add_slots(slots.name, slots.slots, record, user)
         return {"detail": "Slots added successfully"}
 
     async def edit_slots(

@@ -1,71 +1,82 @@
-import pytest
+from textwrap import dedent
+import asyncio
+from aiosmtplib import SMTP
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
-from backend.src.users.models import Users
-from backend.src.auth.models import OAuthAccount
-from backend.src.auth.schemas import UserSchema
-from backend.src.dependencies import async_session_maker
-
-
-def test_config():
-    from backend.src.config import BASE_DIR
-
-    print(BASE_DIR)
+from backend.src.users.schemas import UserSchema
 
 
-# @pytest.mark.asyncio
-# async def test_register_user(
-#     session: AsyncSession = async_session_maker(),
-#     user: dict = {
-#         "id": "1042247364",
-#         "login": "maklakov.daniils",
-#         "client_id": "2421c75bbd80418ca1dacae9595c3a54",
-#         "display_name": "maklakov.daniils",
-#         "real_name": "Даниил Маклаков",
-#         "first_name": "Даниил",
-#         "last_name": "Маклаков",
-#         "sex": "male",
-#         "default_email": "daniil@yandex.ru",
-#         "emails": ["maklakov.daniils@yandex.ru"],
-#         "psuid": "1.AA_lbA.J5jcnC1xk6YXXjGyvh0dQA.nFm8MEKh81UCI0HLpkpseQ",
-#     },
-# ):
-#     query = (
-#         select(Users, OAuthAccount)
-#         .join(Users.oauth_accounts)
-#         .where(OAuthAccount.provider_user_id == int(user["id"]))
-#     )
-#     result = await session.execute(query)
-#     if user := (result.scalar_one_or_none()):
-#         user: UserSchema = UserSchema.model_validate(user)
-#         print(user)
+async def send_email(
+    recipient: str, subject: str, plain_content: str, html_content: str = ""
+):
+    message = MIMEMultipart("alternative")
+    message["From"] = "maklakov.daniils@yandex.ru"
+    message["To"] = recipient
+    message["Subject"] = subject
 
-#     # object = Users(
-#     #     first_name=user["first_name"],
-#     #     last_name=user["last_name"],
-#     #     email=user["default_email"],
-#     #     additional_emails=user["emails"]
-#     # )
-#     # object.oauth_accounts.append(
-#     #     OAuthAccount(
-#     #         provider="YANDEX",
-#     #         provider_user_id=int(user["id"])
-#     #     )
-#     # )
+    plain_text_message = MIMEText(
+        plain_content,
+        "plain",
+        "utf-8",
+    )
+    message.attach(plain_text_message)
 
-#     # session.add(object)
-#     # await session.flush()
-#     # await session.rollback()
-#     # await session.commit()
+    if html_content:
+        html_message = MIMEText(
+            html_content,
+            "html",
+            "utf-8",
+        )
+        message.attach(html_message)
+
+    smtp_client = SMTP(hostname="smtp.yandex.ru", port=465, use_tls=True)
+
+    async with smtp_client:
+        await smtp_client.login(
+            "maklakov.daniils@yandex.ru", "efkyznqxejhluixj"
+        )
+        await smtp_client.send_message(message)
+        print("Письмо успешно отправлено!")
 
 
-# @pytest.mark.asyncio
-# async def test_delete_user(
-#         user_id: UUID = UUID("839a0f05-cd38-4a17-8a54-c3cd7ebe2004"),
-#         session: AsyncSession = async_session_maker()
-#         ):
-#     user = await session.get(Users, user_id)
-#     await session.delete(user)
-#     await session.commit()
+async def send_verification_email(
+        user: UserSchema,
+        verification_link: str,
+):
+    recipient = user.email
+
+    subject = "Подтверждение письма"
+
+    plain_content = dedent(
+        f"""\
+        Дорогой(-ая) {recipient},
+
+        Please перейдите по ссылке, чтобы подтвердить свою почту:
+        {verification_link}
+        """
+    )
+
+    html_content = ...
+    await send_email(
+        recipient=recipient,
+        subject=subject,
+        plain_content=plain_content,
+        html_content=html_content
+    )
+
+
+def test_smtp():
+    asyncio.run(
+        send_email(
+            "dpmaklakov@edu.hse.ru",
+            "Подтверждение письма",
+            "Йоу-йоу, успешный успех от тестового Termeet-а",
+        )
+    )
+
+    # message = MIMEMultipart("alternative")
+    # message["From"] = "maklakov.daniils@yandex.ru"
+    # message["To"] = recip
+    # efkyznqxejhluixj  # noqa

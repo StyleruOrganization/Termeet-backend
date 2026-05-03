@@ -4,6 +4,7 @@ run-name: "Deploy Dev Backend"
 on:
   push:
     branches: ["dev"]
+  workflow_dispatch:
 
 
 jobs:

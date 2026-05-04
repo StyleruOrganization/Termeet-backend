@@ -1,10 +1,12 @@
+from textwrap import dedent
 from typing import TYPE_CHECKING
 from urllib import parse
 from datetime import timedelta
 
 import httpx
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, BackgroundTasks
 
+from backend.src.jinja_templates import templates
 from backend.src.users.schemas import UserSchema
 from backend.src.auth.infrastructure import Infrastructure
 from backend.src.auth.schemas import (
@@ -17,8 +19,10 @@ from backend.src.auth.schemas import (
 from backend.src.config import config
 from backend.src.auth.utils import (
     create_jwt_token,
+    send_email,
     ACCESS_TOKEN_TYPE,
     REFRESH_TOKEN_TYPE,
+    VERIFICATION_TOKEN_TYPE,
 )
 
 
@@ -30,6 +34,7 @@ if TYPE_CHECKING:
 class Service:
     def __init__(self, session: AsyncSession = None):
         self.repository = Infrastructure(session)
+        self.background_tasks = BackgroundTasks()
 
     async def generate_yandex_oauth_redirect_url(self):
         query_params = {
@@ -154,3 +159,64 @@ class Service:
         user_data: UserData = await UserData.from_register(user_data)
         user: Users = await self.repository.register_user(user_data)
         return UserSchema.model_validate(user)
+
+    async def verify_user(self, user_data: RegisterUserData) -> UserSchema:
+        user_data: UserData = await UserData.from_register(user_data)
+
+        jwt_payload = {
+            "first_name": user_data.first_name,
+            "last_name": user_data.last_name,
+            "email": user_data.email,
+        }
+
+        verification_token = await create_jwt_token(
+            token_type=VERIFICATION_TOKEN_TYPE,
+            token_data=jwt_payload,
+            expire_timedelta=timedelta(
+                hours=config.email.VERIFICATION_TOKEN_EXPIRE_HOURS
+            ),
+        )
+
+        query_params = {
+            "token": verification_token,
+        }
+
+        query_string = parse.urlencode(query_params, quote_via=parse.quote)
+        verification_link = f"{config.email.VERIFICATION_LINK}?{query_string}"
+
+        await self.send_verification_email(user_data, verification_link)
+
+    async def send_verification_email(
+        self,
+        user: UserData,
+        verification_link: str,
+    ):
+        recipient = user.email
+
+        subject = "Подтверждение регистрации"
+
+        plain_content = dedent(
+            f"""\
+            Здравствуйте, {user.last_name} {user.first_name} \
+                для подтверждения регистрации перейдите по ссылке:
+            {verification_link}
+
+            Ваш администратор сайта Termeet,
+            © 2026.
+            """
+        )
+
+        template = templates.get_template("confirmation_email.html")
+
+        html_content = template.render(
+            verification_link=verification_link,
+            first_name=user.first_name,
+            last_name=user.last_name,
+        )
+
+        await send_email(
+            recipient=recipient,
+            subject=subject,
+            plain_content=plain_content,
+            html_content=html_content,
+        )

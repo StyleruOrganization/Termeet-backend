@@ -3,11 +3,15 @@ from datetime import timedelta, datetime, UTC
 
 import jwt
 import bcrypt
+from aiosmtplib import SMTP
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 from backend.src.config import config
 
 ACCESS_TOKEN_TYPE = "access"
 REFRESH_TOKEN_TYPE = "refresh"
+VERIFICATION_TOKEN_TYPE = "verification"
 TOKEN_TYPE_FIELD = "type"
 
 REFRESH_TOKEN_COOKIE = "refresh_token"
@@ -73,3 +77,40 @@ async def validate_password(password: str, hashed_password: bytes) -> bool:
         password.encode(),
         hashed_password,
     )
+
+
+async def send_email(
+    recipient: str, subject: str, plain_content: str, html_content: str = ""
+):
+    message = MIMEMultipart("alternative")
+    message["From"] = config.email.EMAIL_USERNAME
+    message["To"] = recipient
+    message["Subject"] = subject
+
+    plain_text_message = MIMEText(
+        plain_content,
+        "plain",
+        "utf-8",
+    )
+    message.attach(plain_text_message)
+
+    if html_content:
+        html_message = MIMEText(
+            html_content,
+            "html",
+            "utf-8",
+        )
+        message.attach(html_message)
+
+    smtp_client = SMTP(
+        hostname=config.email.EMAIL_HOST,
+        port=config.email.EMAIL_PORT,
+        use_tls=True,
+    )
+
+    async with smtp_client:
+        await smtp_client.login(
+            config.email.EMAIL_USERNAME,
+            config.email.EMAIL_PASSWORD.get_secret_value(),
+        )
+        await smtp_client.send_message(message)

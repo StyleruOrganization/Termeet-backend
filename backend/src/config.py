@@ -60,9 +60,11 @@ class CookiesConfig(ConfigBase):
 class EmailConfig(ConfigBase):
     EMAIL_HOST: str
     EMAIL_PORT: int
-    EMAIL_USERNAME: str
-    EMAIL_PASSWORD: SecretStr
-    FRONTEND_URL: str
+    EMAIL_USERNAME: str | None
+    EMAIL_PASSWORD: SecretStr | None
+    VERIFICATION_LINK: str
+    VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 15
+    USE_MAILDEV: bool
 
 
 class Config(BaseSettings):

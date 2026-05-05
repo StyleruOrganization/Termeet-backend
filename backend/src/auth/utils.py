@@ -1,9 +1,10 @@
 import asyncio
 from datetime import timedelta, datetime, UTC
+from fastapi import HTTPException, status
 
 import jwt
 import bcrypt
-from aiosmtplib import SMTP
+import aiosmtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -102,15 +103,55 @@ async def send_email(
         )
         message.attach(html_message)
 
-    smtp_client = SMTP(
-        hostname=config.email.EMAIL_HOST,
-        port=config.email.EMAIL_PORT,
-        use_tls=True,
-    )
+    send_email_args = {
+        "message": message,
+        "hostname": config.email.EMAIL_HOST,
+        "port": config.email.EMAIL_PORT,
+    }
 
-    async with smtp_client:
-        await smtp_client.login(
-            config.email.EMAIL_USERNAME,
-            config.email.EMAIL_PASSWORD.get_secret_value(),
+    if not config.email.USE_MAILDEV:
+        send_email_args["username"] = config.email.EMAIL_USERNAME
+        send_email_args["password"] = config.email.EMAIL_PASSWORD
+        send_email_args["use_tls"] = True
+
+    try:
+        await aiosmtplib.send(**send_email_args)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
         )
-        await smtp_client.send_message(message)
+
+    # try:
+    #     # Для Яндекса обычно используется порт 465 и use_tls=True
+    #     await aiosmtplib.send(
+    #         message,
+    #         hostname="smtp.yandex.ru",
+    #         port=465,
+    #         username="your-login@yandex.ru",
+    #         password="your-app-password", # Используйте ПАРОЛЬ ПРИЛОЖЕНИЯ, а не личный
+    #         use_tls=True,
+    #     )
+    #     print("Письмо успешно отправлено на сервер!")
+
+    # except aiosmtplib.SMTPRecipientRefused:
+    #     # Самая важная для вас ошибка: сервер получателя сразу сказал, что адреса не существует
+    #     print(f"Ошибка: Адрес {recipient_email} отклонен сервером (не существует).")
+
+    # except aiosmtplib.SMTPAuthenticationError:
+    #     # Ошибка логина/пароля или не включен SMTP в настройках Яндекса
+    #     print("Ошибка: Не удалось войти. Проверьте логин и пароль приложения.")
+
+    # except aiosmtplib.SMTPDataError:
+    #     # Яндекс часто кидает эту ошибку, если посчитал ваше письмо спамом
+    #     print("Ошибка: Письмо отклонено сервером Яндекса (возможно, спам).")
+
+    # except aiosmtplib.SMTPConnectError:
+    #     print("Ошибка: Не удалось подключиться к серверу Яндекса.")
+
+    # except aiosmtplib.SMTPException as e:
+    #     # Базовое исключение для всех остальных ошибок SMTP
+    #     print(f"Произошла общая ошибка SMTP: {e}")
+
+    # except Exception as e:
+    #     # Ошибки сети, таймауты и прочее
+    #     print(f"Системная ошибка: {e}")

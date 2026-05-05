@@ -9,7 +9,7 @@ from backend.src.auth.models import OAuthAccount
 if TYPE_CHECKING:
     from uuid import UUID
     from backend.src.auth.schemas import UserData
-
+    from backend.src.users.schemas import UserSchema
 
 class Infrastructure(Repository):
     def __init__(self, session):
@@ -18,7 +18,7 @@ class Infrastructure(Repository):
     async def register_user(self, user: UserData) -> Users:
         object: Users = Users(
             **user.model_dump(
-                exclude={
+                include={
                     "first_name",
                     "last_name",
                     "email",
@@ -59,3 +59,11 @@ class Infrastructure(Repository):
         query = select(Users).where(Users.email == email)
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
+
+    async def set_verify_user(self, user: UserSchema):
+        user_cache = self.session.info.get("user_cache", {})
+        cached_user: Users = user_cache.get(user.id)
+
+        cached_user.is_verified = True
+        await self.session.flush()
+        return cached_user

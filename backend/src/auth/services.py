@@ -4,7 +4,7 @@ from urllib import parse
 from datetime import timedelta
 
 import httpx
-from fastapi import HTTPException, status, BackgroundTasks
+from fastapi import HTTPException, status
 
 from backend.src.jinja_templates import templates
 from backend.src.users.schemas import UserSchema
@@ -25,16 +25,20 @@ from backend.src.auth.utils import (
     VERIFICATION_TOKEN_TYPE,
 )
 
-
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+    from fastapi import BackgroundTasks
     from backend.src.users.models import Users
 
 
 class Service:
-    def __init__(self, session: AsyncSession = None):
+    def __init__(
+        self,
+        session: AsyncSession = None,
+        background_tasks: BackgroundTasks = None,
+    ):
         self.repository = Infrastructure(session)
-        self.background_tasks = BackgroundTasks()
+        self.background_tasks = background_tasks
 
     async def generate_yandex_oauth_redirect_url(self):
         query_params = {
@@ -147,34 +151,33 @@ class Service:
 
         return refresh_token
 
-    async def register_user(self, user_data: RegisterUserData) -> UserSchema:
+    async def register_user(self, user_reg_data: RegisterUserData) -> UserSchema:
         if user := (
-            await self.repository.check_user_in_db_by_email(user_data.email)
+            await self.repository.check_user_in_db_by_email(user_reg_data.email)
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User with this email already exists",
             )
 
-        user_data: UserData = await UserData.from_register(user_data)
+        user_data: UserData = await UserData.from_register(user_reg_data)
         user: Users = await self.repository.register_user(user_data)
-        return UserSchema.model_validate(user)
+        user: UserSchema = UserSchema.model_validate(user)
 
-    async def verify_user(self, user_data: RegisterUserData) -> UserSchema:
-        user_data: UserData = await UserData.from_register(user_data)
+        if user_reg_data.do_verify_email:
+            self.background_tasks.add_task(self.verify_user, user)
 
+        return user
+
+    async def verify_user(self, user: UserSchema) -> UserSchema:
         jwt_payload = {
-            "first_name": user_data.first_name,
-            "last_name": user_data.last_name,
-            "email": user_data.email,
+            "sub": str(user.id),
         }
 
         verification_token = await create_jwt_token(
             token_type=VERIFICATION_TOKEN_TYPE,
             token_data=jwt_payload,
-            expire_timedelta=timedelta(
-                hours=config.email.VERIFICATION_TOKEN_EXPIRE_HOURS
-            ),
+            expire_minutes=config.email.VERIFICATION_TOKEN_EXPIRE_MINUTES,
         )
 
         query_params = {
@@ -184,7 +187,10 @@ class Service:
         query_string = parse.urlencode(query_params, quote_via=parse.quote)
         verification_link = f"{config.email.VERIFICATION_LINK}?{query_string}"
 
-        await self.send_verification_email(user_data, verification_link)
+        await self.send_verification_email(user, verification_link)
+
+    async def set_verify_user(self, user: UserSchema):
+        return await self.repository.set_verify_user(user)
 
     async def send_verification_email(
         self,
@@ -195,18 +201,16 @@ class Service:
 
         subject = "Подтверждение регистрации"
 
-        plain_content = dedent(
-            f"""\
+        plain_content = dedent(f"""\
             Здравствуйте, {user.last_name} {user.first_name} \
                 для подтверждения регистрации перейдите по ссылке:
             {verification_link}
 
             Ваш администратор сайта Termeet,
             © 2026.
-            """
-        )
+            """)
 
-        template = templates.get_template("confirmation_email.html")
+        template = templates.get_template("verification_email.html")
 
         html_content = template.render(
             verification_link=verification_link,
@@ -214,7 +218,7 @@ class Service:
             last_name=user.last_name,
         )
 
-        await send_email(
+        return await send_email(
             recipient=recipient,
             subject=subject,
             plain_content=plain_content,

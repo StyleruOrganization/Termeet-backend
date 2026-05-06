@@ -14,7 +14,7 @@ class Meet(BaseModel):
     description: str | None = Field(None, max_length=400)
     link: str | None = Field(None, max_length=128)
     duration: str | None = None
-    dataRange: list[list[str]] = Field(alias="data_range")
+    dataRange: list[list[str]] | None = Field(alias="data_range")
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 

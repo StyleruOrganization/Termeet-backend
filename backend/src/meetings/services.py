@@ -51,18 +51,15 @@ class Service:
 
         record: Meetings = await self.repository.get_meeting(hash)
 
-        if record.owner_id is not None:
+        meeting.dataRange = record.data_range
 
-            if not user or record.owner_id != user.id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You do not have permission to edit this meeting",
-                )
+        if (record.owner_id is not None) and (not user or record.owner_id != user.id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to edit participants",
+            )
 
-            await self.repository.edit_meeting(record, meeting)
-        else:
-            meeting.dataRange = record.data_range
-            await self.repository.edit_meeting(record, meeting)
+        await self.repository.edit_meeting(record, meeting)
 
         return {"detail": "Meeting edited successfully"}
 
@@ -108,11 +105,15 @@ class Service:
     async def delete_slots_of_user(
         self, hash: UUID, username: str, user: UserSchema | None
     ):
-        if not user:
+        record: Meetings = await self.repository.get_meeting_with_participants(
+            hash
+        )
+
+        if (record.owner_id is not None) and (not user or record.owner_id != user.id):
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="You must be authenticated to delete slots",
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to delete participants",
             )
 
-        await self.repository.delete_slots_of_user(hash, username, user)
+        await self.repository.delete_slots_of_user(record, username, user)
         return {"detail": "Slots deleted successfully"}

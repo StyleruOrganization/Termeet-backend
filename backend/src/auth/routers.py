@@ -115,8 +115,8 @@ async def auth_refresh_jwt(
 
 @router.post(
     "/check_verify_token",
-    summary="Проверка токена",
-    description="Проверяет валидность токена",
+    summary="Проверка токена верификации почты",
+    description="Проверяет валидность токена верификации почты",
 )
 async def verify_token(
     user: UserSchema = Depends(get_current_auth_user_from_validation),
@@ -136,7 +136,9 @@ async def confirm_email(
     session: AsyncSession = Depends(get_async_session),
 ):
     service = Service(session)
-    return await service.create_verification_token_and_send_email(user)
+    await service.create_verification_token_and_send_email(user)
+
+    return {"detail": "Email confirmed successfully"}
 
 
 @router.post(

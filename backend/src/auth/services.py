@@ -165,7 +165,7 @@ class Service:
         user: UserSchema = UserSchema.model_validate(user)
 
         if user_reg_data.do_verify_email:
-            self.background_tasks.add_task(self.create_verification_token_and_send_email, user)
+            await self.create_verification_token_and_send_email(user)
 
         return user
 
@@ -193,7 +193,8 @@ class Service:
         query_string = parse.urlencode(query_params, quote_via=parse.quote)
         verification_link = f"{config.email.VERIFICATION_LINK}?{query_string}"
 
-        await self.send_verification_email(user, verification_link)
+        self.background_tasks.add_task(self.send_verification_email, user, verification_link)
+
 
     async def set_verify_user(self, user: UserSchema):
         return await self.repository.set_verify_user(user)

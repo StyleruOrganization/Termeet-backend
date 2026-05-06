@@ -110,12 +110,13 @@ async def send_email(
 
     if not config.email.USE_MAILDEV:
         send_email_args["username"] = config.email.EMAIL_USERNAME
-        send_email_args["password"] = config.email.EMAIL_PASSWORD
+        send_email_args["password"] = config.email.EMAIL_PASSWORD.get_secret_value()
         send_email_args["use_tls"] = True
 
     try:
         await aiosmtplib.send(message, **send_email_args)
     except Exception as e:
+        # Придумать, как обрабатывать эти ошибки по-другому
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
         )

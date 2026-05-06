@@ -141,34 +141,26 @@ class Infrastructure(Repository):
         await self.session.flush()
 
     async def delete_slots_of_user(
-        self, id: UUID, username: str, user: UserSchema | None
+        self, meeting: Meetings, username: str, user: UserSchema | None
     ):
-        meeting: Meetings = await self.get_meeting_with_participants(id)
-
-        if user.id != meeting.owner_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You are not the owner of this meeting",
-            )
 
         current_slots = meeting.slots.copy() if meeting.slots else []
 
         for slot in current_slots:
             if username == slot["name"]:
 
-                if (slot["user_id"] is not None) and (
-                    user := await self.session.get(Users, slot["user_id"])
-                ):
-                    meeting.participants.remove(user)
-                # Такого по сути быть не может, но оставил потому что это поле
-                # хранится в JSONB и если пользователь удалится,
-                # то может остаться "мертвый" user_id в слотах,
-                # который будет мешать удалению слотов
-                elif user is None:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="User not found",
-                    )
+                if (slot["user_id"] is not None):
+                    if user := (await self.session.get(Users, slot["user_id"])):
+                        meeting.participants.remove(user)
+                        # Такого по сути быть не может, но оставил потому что это поле
+                        # хранится в JSONB и если пользователь удалится,
+                        # то может остаться "мертвый" user_id в слотах,
+                        # который будет мешать удалению слотов
+                    else:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail="User not found",
+                        )
 
                 current_slots.remove(slot)
                 break

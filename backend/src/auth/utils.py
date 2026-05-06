@@ -104,7 +104,6 @@ async def send_email(
         message.attach(html_message)
 
     send_email_args = {
-        "message": message,
         "hostname": config.email.EMAIL_HOST,
         "port": config.email.EMAIL_PORT,
     }
@@ -115,7 +114,7 @@ async def send_email(
         send_email_args["use_tls"] = True
 
     try:
-        await aiosmtplib.send(**send_email_args)
+        await aiosmtplib.send(message, **send_email_args)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)

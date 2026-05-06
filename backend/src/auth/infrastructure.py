@@ -15,6 +15,15 @@ class Infrastructure(Repository):
     def __init__(self, session):
         super().__init__(session)
 
+    async def get_cached_user(self, user: UserSchema) -> Users | None:
+        user_cache = self.session.info.get("user_cache", {})
+        cached_user: Users = user_cache.get(user.id)
+
+        return cached_user
+    
+    async def get_user_by_id(self, user_id: UUID) -> Users | None:
+        return await self.session.get(Users, user_id)
+
     async def register_user(self, user: UserData) -> Users:
         object: Users = Users(
             **user.model_dump(
@@ -61,9 +70,13 @@ class Infrastructure(Repository):
         return result.scalar_one_or_none()
 
     async def set_verify_user(self, user: UserSchema):
-        user_cache = self.session.info.get("user_cache", {})
-        cached_user: Users = user_cache.get(user.id)
+        user_cache = (await self.get_cached_user(user))
 
-        cached_user.is_verified = True
+        if user_cache:
+            user = user_cache
+        else:
+            user = await self.get_user_by_id(user.id)
+
+        user.is_verified = True
         await self.session.flush()
-        return cached_user
+        return user

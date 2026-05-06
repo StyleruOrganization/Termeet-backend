@@ -165,11 +165,17 @@ class Service:
         user: UserSchema = UserSchema.model_validate(user)
 
         if user_reg_data.do_verify_email:
-            self.background_tasks.add_task(self.verify_user, user)
+            self.background_tasks.add_task(self.create_verification_token_and_send_email, user)
 
         return user
 
-    async def verify_user(self, user: UserSchema) -> UserSchema:
+    async def create_verification_token_and_send_email(self, user: UserSchema) -> UserSchema:
+        if user.is_verified:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is already verified",
+            )
+
         jwt_payload = {
             "sub": str(user.id),
         }

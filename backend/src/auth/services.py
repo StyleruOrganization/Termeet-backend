@@ -170,6 +170,12 @@ class Service:
         return user
 
     async def create_verification_token_and_send_email(self, user: UserSchema) -> UserSchema:
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="You must be authenticated to confirm email",
+            )
+
         if user.is_verified:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -197,7 +203,10 @@ class Service:
 
 
     async def set_verify_user(self, user: UserSchema):
-        return await self.repository.set_verify_user(user)
+        user: Users = await self.repository.set_verify_user(user)
+
+        return {"detail": "User verified successfully"}
+
 
     async def send_verification_email(
         self,

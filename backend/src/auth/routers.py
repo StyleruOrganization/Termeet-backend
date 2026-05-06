@@ -15,6 +15,7 @@ from backend.src.auth.schemas import (
 )
 from backend.src.auth.services import Service
 from backend.src.auth.dependencies import (
+    get_current_active_user,
     get_current_auth_user_from_validation,
     get_current_auth_user_from_refresh,
     validate_login_user,
@@ -111,7 +112,7 @@ async def auth_refresh_jwt(
 
 
 @router.post(
-    "/verify",
+    "/check_verify_token",
     summary="Проверка токена",
     description="Проверяет валидность токена",
 )
@@ -124,13 +125,27 @@ async def verify_token(
 
 
 @router.post(
+    "/confirm_email",
+    summary="Подтверждение email",
+    description="Подтверждает email, отправляет письмо с подтверждением",
+)
+async def confirm_email(
+    user: UserSchema = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = Service(session)
+    return await service.create_verification_token_and_send_email(user)
+
+
+@router.post(
     "/register",
     summary="Регистрация нового пользователя",
     description="Регистрирует нового пользователя, получает его данные, \
-                 хеширует пароль, сохраняет в БД",
+                 хеширует пароль, сохраняет в БД; также отправляет \
+                 письмо с подтверждением",
     response_model=UserSchema,
     responses={
-        401: {
+        400: {
             "description": "Пользователь с эти email-ом уже существует",
             "model": ErrorResponse,
         },
@@ -142,6 +157,7 @@ async def default_register_user(
     session: AsyncSession = Depends(get_async_session),
 ):
     service = Service(session, background_tasks)
+    # Метод сервиса снизу включает верификацию
     user = await service.register_user(user_data)
     return user
 

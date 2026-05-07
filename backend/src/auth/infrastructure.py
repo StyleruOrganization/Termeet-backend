@@ -15,14 +15,15 @@ class Infrastructure(Repository):
     def __init__(self, session):
         super().__init__(session)
 
-    async def get_cached_user(self, user: UserSchema) -> Users | None:
+
+    async def get_user_by_id(self, user_id: UUID) -> Users | None:
         user_cache = self.session.info.get("user_cache", {})
-        cached_user: Users = user_cache.get(user.id)
+        cached_user: Users = user_cache.get(user_id)
+
+        if not cached_user:
+            return await self.session.get(Users, user_id)
 
         return cached_user
-    
-    async def get_user_by_id(self, user_id: UUID) -> Users | None:
-        return await self.session.get(Users, user_id)
 
     async def register_user(self, user: UserData) -> Users:
         object: Users = Users(
@@ -70,13 +71,15 @@ class Infrastructure(Repository):
         return result.scalar_one_or_none()
 
     async def set_verify_user(self, user: UserSchema):
-        user_cache = (await self.get_cached_user(user))
-
-        if user_cache:
-            user = user_cache
-        else:
-            user = await self.get_user_by_id(user.id)
+        user: Users = await self.get_user_by_id(user.id)
 
         user.is_verified = True
+        await self.session.flush()
+        return user
+    
+    async def set_new_password(self, user: UserSchema, password_hash):
+        user: Users = await self.get_user_by_id(user.id)
+
+        user.password_hash = password_hash
         await self.session.flush()
         return user

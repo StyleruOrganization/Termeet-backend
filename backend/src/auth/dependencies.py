@@ -16,6 +16,7 @@ from backend.src.auth.utils import (
     REFRESH_TOKEN_TYPE,
     REFRESH_TOKEN_COOKIE,
     VERIFICATION_TOKEN_TYPE,
+    RESET_PASSWORD_TOKEN_TYPE,
 )
 from backend.src.dependencies import get_async_session
 from backend.src.users.schemas import UserSchema
@@ -58,15 +59,15 @@ async def _get_current_refresh_token_payload(
     return payload
 
 
-async def _get_current_validation_token_payload(
-        validation_token: str,
+async def _get_current_token_in_body_payload(
+        token: str,
 ):
     try:
-        payload = await decode_jwt(token=validation_token)
+        payload = await decode_jwt(token=token)
     except InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid token error (validation token is expired)",
+            detail="invalid token error (token is expired)",
         )
 
     return payload
@@ -104,7 +105,7 @@ def get_auth_user_from_token_of_type(token_type: str):
     elif token_type == REFRESH_TOKEN_TYPE:
         current_function_of_token_payload = _get_current_refresh_token_payload
     else:
-        current_function_of_token_payload = _get_current_validation_token_payload
+        current_function_of_token_payload = _get_current_token_in_body_payload
 
     async def get_auth_user_from_token(
         payload: dict | None = Depends(current_function_of_token_payload),
@@ -123,13 +124,16 @@ _get_current_auth_user_from_access = get_auth_user_from_token_of_type(
     ACCESS_TOKEN_TYPE
 )
 
-
 get_current_auth_user_from_refresh = get_auth_user_from_token_of_type(
     REFRESH_TOKEN_TYPE
 )
 
 get_current_auth_user_from_validation = get_auth_user_from_token_of_type(
     VERIFICATION_TOKEN_TYPE
+)
+
+get_current_auth_user_from_reset_password = get_auth_user_from_token_of_type(
+    RESET_PASSWORD_TOKEN_TYPE
 )
 
 

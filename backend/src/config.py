@@ -67,12 +67,17 @@ class EmailConfig(ConfigBase):
     USE_MAILDEV: bool
 
 
+class ResetPasswordConfig(ConfigBase):
+    RESET_PASSWORD_LINK: str
+    RESET_PASSWORD_TOKEN_EXPIRE_MINUTES: int = 15
+
 class Config(BaseSettings):
     prod_db: ProdDatabaseConfig = Field(default_factory=ProdDatabaseConfig)
     yandex_auth: YandexAuthConfig = Field(default_factory=YandexAuthConfig)
     auth_jwt: AuthJWTconfig = Field(default_factory=AuthJWTconfig)
     cookies: CookiesConfig = Field(default_factory=CookiesConfig)
     email: EmailConfig = Field(default_factory=EmailConfig)
+    reset_password: ResetPasswordConfig = Field(default_factory=ResetPasswordConfig)
 
     @classmethod
     def load(cls) -> "Config":

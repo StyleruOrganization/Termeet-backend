@@ -11,6 +11,8 @@ from backend.src.users.schemas import UserSchema
 from backend.src.auth.infrastructure import Infrastructure
 from backend.src.auth.schemas import (
     Code,
+    Email,
+    Password,
     AuthTokens,
     RegisterUserData,
     YandexUserData,
@@ -20,9 +22,11 @@ from backend.src.config import config
 from backend.src.auth.utils import (
     create_jwt_token,
     send_email,
+    hash_password,
     ACCESS_TOKEN_TYPE,
     REFRESH_TOKEN_TYPE,
     VERIFICATION_TOKEN_TYPE,
+    RESET_PASSWORD_TOKEN_TYPE,
 )
 
 if TYPE_CHECKING:
@@ -201,11 +205,64 @@ class Service:
 
         self.background_tasks.add_task(self.send_verification_email, user, verification_link)
 
-
     async def set_verify_user(self, user: UserSchema):
         user: Users = await self.repository.set_verify_user(user)
 
         return {"detail": "User verified successfully"}
+
+    async def create_reset_password_token_and_send_email(self, email: Email):
+        email = email.email
+        if user := (await self.repository.check_user_in_db_by_email(email)):
+
+            jwt_payload = {
+                "sub": str(user.id),
+            }
+
+            reset_password_token = await create_jwt_token(
+                token_type=RESET_PASSWORD_TOKEN_TYPE,
+                token_data=jwt_payload,
+                expire_minutes=config.reset_password.RESET_PASSWORD_TOKEN_EXPIRE_MINUTES,
+            )
+
+            query_params = {
+                "token": reset_password_token,
+            }
+
+            query_string = parse.urlencode(query_params, quote_via=parse.quote)
+            reset_password_link = f"{config.reset_password.RESET_PASSWORD_LINK}?{query_string}"
+
+            self.background_tasks.add_task(self.send_reset_password_email, email, reset_password_link)
+
+    async def send_reset_password_email(self, email, reset_password_link):
+        recipient = email
+
+        subject = "Сброс пароля"
+
+        plain_content = dedent(f"""\
+            Здравствуйте, для сброса пароля перейдите по ссылке:
+            {reset_password_link}
+
+            Ваш администратор сайта Termeet,
+            © 2026.
+            """)
+
+        template = templates.get_template("reset_password_email.html")
+
+        html_content = template.render(reset_password_link=reset_password_link)
+
+        return await send_email(
+            recipient=recipient,
+            subject=subject,
+            plain_content=plain_content,
+            html_content=html_content,
+        )
+
+    async def set_new_password(self, user: UserSchema, password: Password):
+        password = password.password
+        password_hash = await hash_password(password)
+        await self.repository.set_new_password(user, password_hash)
+
+        return {"detail": "The new password was set successfully"}
 
 
     async def send_verification_email(

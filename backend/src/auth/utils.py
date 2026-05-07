@@ -13,6 +13,7 @@ from backend.src.config import config
 ACCESS_TOKEN_TYPE = "access"
 REFRESH_TOKEN_TYPE = "refresh"
 VERIFICATION_TOKEN_TYPE = "verification"
+RESET_PASSWORD_TOKEN_TYPE = "reset_password"
 TOKEN_TYPE_FIELD = "type"
 
 REFRESH_TOKEN_COOKIE = "refresh_token"

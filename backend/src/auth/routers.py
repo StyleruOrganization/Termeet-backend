@@ -8,6 +8,8 @@ from backend.src.dependencies import get_async_session
 from backend.src.users.schemas import UserSchema
 from backend.src.auth.schemas import (
     Code,
+    Email,
+    Password,
     AuthTokens,
     RegisterUserData,
     YandexUserData,
@@ -18,6 +20,7 @@ from backend.src.auth.dependencies import (
     get_current_active_user,
     get_current_auth_user_from_validation,
     get_current_auth_user_from_refresh,
+    get_current_auth_user_from_reset_password,
     validate_login_user,
 )
 from backend.src.auth.utils import REFRESH_TOKEN_COOKIE
@@ -114,9 +117,16 @@ async def auth_refresh_jwt(
 
 
 @router.post(
-    "/verify",
+    "/confirm-email/verify",
     summary="Проверка токена верификации почты",
     description="Проверяет валидность токена верификации почты",
+    responses={
+        401: {
+            "description": "Срок действия токена истек \
+                Не правильный тип токена",
+            "model": ErrorResponse,
+        },
+    },
 )
 async def verify_token(
     user: UserSchema = Depends(get_current_auth_user_from_validation),
@@ -127,7 +137,7 @@ async def verify_token(
 
 
 @router.post(
-    "/request-verify-token",
+    "/confirm-email",
     summary="Подтверждение email",
     description="Подтверждает email, отправляет письмо с подтверждением",
 )
@@ -141,6 +151,47 @@ async def confirm_email(
 
     return {"detail": "Email sent successfully"}
 
+
+@router.post(
+    "/reset-password",
+    summary="Сброс пароля",
+    description="Подтверждает email, отправляет письмо с подтверждением, \
+                 отправляет письмо с ссылкой для сброса пароля",
+)
+async def reset_password(
+    background_tasks: BackgroundTasks,
+    email: Email,
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = Service(session, background_tasks)
+    await service.create_reset_password_token_and_send_email(email)
+
+    return {"detail": "Email sent successfully"}
+
+
+@router.post(
+    "/reset-password/verify",
+    summary="Проверка токена сброса пароля и замена пароля на новый",
+    description="Проверяет валидность токена сброса пароля",
+    responses={
+        401: {
+            "description": "Срок действия токена истек \
+                Не правильный тип токена",
+            "model": ErrorResponse,
+        },
+        404: {
+            "description": "Объект не найден",
+            "model": ErrorResponse,
+        },
+    },
+)
+async def verify_reset_password_token(
+    password: Password,
+    user: UserSchema = Depends(get_current_auth_user_from_reset_password),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = Service(session)
+    return await service.set_new_password(user, password)
 
 @router.post(
     "/register",

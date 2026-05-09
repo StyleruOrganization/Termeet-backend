@@ -5,6 +5,9 @@ networks:
 
 volumes:
   postgres_data:
+  grafana_data:
+  prometheus_data:
+
 
 services:  
 
@@ -58,3 +61,44 @@ services:
       retries: 10
       start_period: 30s
       start_interval: 1s
+
+  maildev:
+    image: maildev/maildev
+    container_name: maildev-local
+    environment:
+      - TZ=Europe/Moscow
+      - MAILDEV_WEB_PORT=1080
+      - MAILDEV_SMTP_PORT=1025
+    ports:
+      - 1080:1080
+      - 1025:1025
+    networks:
+      - backend-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - 9090:9090
+    networks:
+      - backend-net
+    volumes:
+      - ./prometheus_data:/prometheus
+      - ./prometheus_data/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - 3000:3000
+    networks:
+      - backend-net
+    volumes:
+      - ./grafana_data/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - grafana_data:/var/lib/grafana

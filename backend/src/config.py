@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).parent.parent
@@ -57,11 +57,27 @@ class CookiesConfig(ConfigBase):
     HTTPS_TRUE: bool
 
 
+class EmailConfig(ConfigBase):
+    EMAIL_HOST: str
+    EMAIL_PORT: int
+    EMAIL_USERNAME: str | None
+    EMAIL_PASSWORD: SecretStr | None
+    VERIFICATION_LINK: str
+    VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 15
+    USE_MAILDEV: bool
+
+
+class ResetPasswordConfig(ConfigBase):
+    RESET_PASSWORD_LINK: str
+    RESET_PASSWORD_TOKEN_EXPIRE_MINUTES: int = 15
+
 class Config(BaseSettings):
     prod_db: ProdDatabaseConfig = Field(default_factory=ProdDatabaseConfig)
     yandex_auth: YandexAuthConfig = Field(default_factory=YandexAuthConfig)
     auth_jwt: AuthJWTconfig = Field(default_factory=AuthJWTconfig)
     cookies: CookiesConfig = Field(default_factory=CookiesConfig)
+    email: EmailConfig = Field(default_factory=EmailConfig)
+    reset_password: ResetPasswordConfig = Field(default_factory=ResetPasswordConfig)
 
     @classmethod
     def load(cls) -> "Config":

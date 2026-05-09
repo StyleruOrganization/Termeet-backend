@@ -10,6 +10,7 @@ class UserSchema(BaseModel):
     last_name: str
     nickname: Optional[str]
     is_active: bool
+    is_verified: bool
     email: str
     additional_emails: Optional[list]
 

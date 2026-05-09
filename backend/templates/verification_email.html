@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Подтверждение регистрации Termeet</title>
+    <style>
+        /* Основные сбросы для почтовиков */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f9;
+            color: #333333;
+        }
+        table {
+            border-spacing: 0;
+        }
+        td {
+            padding: 0;
+        }
+        img {
+            border: 0;
+        }
+        .wrapper {
+            width: 100%;
+            table-layout: fixed;
+            background-color: #f4f7f9;
+            padding-bottom: 40px;
+        }
+        .main {
+            background-color: #ffffff;
+            margin: 0 auto;
+            width: 100%;
+            max-width: 600px;
+            border-spacing: 0;
+            font-family: sans-serif;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+        /* Стиль кнопки из палитры */
+        .button {
+            background-color: #3059D2; /* Акцентный синий из палитры */
+            border-radius: 6px;
+            color: #ffffff !important;
+            display: inline-block;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            text-decoration: none;
+            padding: 15px 30px;
+            margin: 20px 0;
+        }
+        .header {
+            background-color: #0F1426; /* Самый темный цвет из палитры */
+            padding: 30px;
+            text-align: center;
+        }
+        .content {
+            padding: 40px 30px;
+            line-height: 1.6;
+            font-size: 16px;
+        }
+        .footer {
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #888888;
+        }
+        .logo {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        .logo span {
+            color: #4A90E2;
+        }
+    </style>
+</head>
+<body>
+    <center class="wrapper">
+        <table class="main" width="100%">
+            <!-- Header -->
+            <tr>
+                <td class="header">
+                    <div class="logo">Ter<span>meet</span></div>
+                </td>
+            </tr>
+            
+            <!-- Body -->
+            <tr>
+                <td class="content">
+                    <h2 style="margin-top: 0; color: #0F1426;">Подтверждение регистрации</h2>
+                    <p>Здравствуйте, <strong>{{ last_name }} {{ first_name }}</strong>!</p>
+                    <p>Мы рады, что вы присоединились к <strong>Termeet</strong>. Чтобы активировать ваш аккаунт и получить доступ ко всем функциям сервиса, подтвердите, пожалуйста, ваш электронный адрес.</p>
+                    
+                    <center>
+                        <a href="{{ verification_link }}" class="button">Подтвердить регистрацию</a>
+                    </center>
+
+                </td>
+            </tr>
+            
+            <!-- Footer -->
+            <tr>
+                <td class="footer">
+                    <p>С уважением, администрация Termeet<br>
+                    Это письмо отправлено автоматически, на него не нужно отвечать.</p>
+                    <p>&copy; 2026 Termeet Inc. Все права защищены.</p>
+                </td>
+            </tr>
+        </table>
+    </center>
+</body>
+</html>

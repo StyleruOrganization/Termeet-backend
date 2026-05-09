@@ -7,6 +7,14 @@ class Code(BaseModel):
     code: str = Field(..., min_length=1, max_length=128)
 
 
+class Email(BaseModel):
+    email: EmailStr = Field(..., max_length=128)
+
+
+class Password(BaseModel):
+    password: str = Field(..., min_length=6, max_length=128)
+
+
 class AuthTokens(BaseModel):
     access_token: str
     refresh_token: str
@@ -32,6 +40,7 @@ class RegisterUserData(BaseModel):
     last_name: str = Field(..., min_length=1, max_length=128)
     email: EmailStr = Field(..., max_length=128)
     password: str = Field(..., min_length=6, max_length=128)
+    do_verify_email: bool
 
 
 class UserData(BaseModel):

@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from backend.src.meetings.routers import router as meetings_router
 from backend.src.auth.routers import router as auth_router
@@ -32,3 +33,5 @@ app.add_middleware(
 app.include_router(meetings_router)
 app.include_router(auth_router)
 app.include_router(users_router)
+
+Instrumentator().instrument(app).expose(app)

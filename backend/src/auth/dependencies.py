@@ -15,6 +15,8 @@ from backend.src.auth.utils import (
     ACCESS_TOKEN_TYPE,
     REFRESH_TOKEN_TYPE,
     REFRESH_TOKEN_COOKIE,
+    VERIFICATION_TOKEN_TYPE,
+    RESET_PASSWORD_TOKEN_TYPE,
 )
 from backend.src.dependencies import get_async_session
 from backend.src.users.schemas import UserSchema
@@ -57,6 +59,19 @@ async def _get_current_refresh_token_payload(
     return payload
 
 
+async def _get_current_token_in_body_payload(
+        token: str,
+):
+    try:
+        payload = await decode_jwt(token=token)
+    except InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid token error (token is expired)",
+        )
+
+    return payload
+
 async def validate_token_type(payload: dict, token_type: str):
     current_token_type = payload.get(TOKEN_TYPE_FIELD)
     if current_token_type != token_type:
@@ -87,8 +102,10 @@ async def get_user_by_token_sub(payload: dict, session: AsyncSession):
 def get_auth_user_from_token_of_type(token_type: str):
     if token_type == ACCESS_TOKEN_TYPE:
         current_function_of_token_payload = _get_current_access_token_payload
-    else:
+    elif token_type == REFRESH_TOKEN_TYPE:
         current_function_of_token_payload = _get_current_refresh_token_payload
+    else:
+        current_function_of_token_payload = _get_current_token_in_body_payload
 
     async def get_auth_user_from_token(
         payload: dict | None = Depends(current_function_of_token_payload),
@@ -107,9 +124,16 @@ _get_current_auth_user_from_access = get_auth_user_from_token_of_type(
     ACCESS_TOKEN_TYPE
 )
 
-
 get_current_auth_user_from_refresh = get_auth_user_from_token_of_type(
     REFRESH_TOKEN_TYPE
+)
+
+get_current_auth_user_from_validation = get_auth_user_from_token_of_type(
+    VERIFICATION_TOKEN_TYPE
+)
+
+get_current_auth_user_from_reset_password = get_auth_user_from_token_of_type(
+    RESET_PASSWORD_TOKEN_TYPE
 )
 
 
@@ -128,7 +152,7 @@ async def get_current_active_user(
 
 
 async def validate_login_user(
-    user_data: LoginUserData = Form(),
+    user_data: LoginUserData,
     session: AsyncSession = Depends(get_async_session),
 ):
     repository = Infrastructure(session)

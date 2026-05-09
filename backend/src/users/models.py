@@ -21,6 +21,7 @@ class Users(Base):
     nickname: Mapped[Optional[str]] = mapped_column(
         String(50), Computed("first_name"))
     is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
+    is_verified: Mapped[bool] = mapped_column(nullable=False, default=False)
     email: Mapped[Optional[str]] = mapped_column(unique=True, index=True)
     additional_emails: Mapped[Optional[list[str]]] = mapped_column(
         ARRAY(String)

@@ -8,13 +8,20 @@ from backend.src.feedback.infrastructures import Infrastructure
 from backend.src.feedback.schemas import Feedback as FeedbackSchema
 
 if TYPE_CHECKING:
+    from fastapi import BackgroundTasks
     from sqlalchemy.ext.asyncio import AsyncSession
-    from backend.src.feedback.models import Feedback
+    from backend.src.users.schemas import UserSchema
+    from backend.src.feedback.schemas import Feedback
 
 
 class Service:
-    def __init__(self, session: AsyncSession = None):
+    def __init__(
+        self,
+        session: AsyncSession = None,
+        background_tasks: BackgroundTasks = None,
+    ):
         self.repository = Infrastructure(session)
+        self.background_tasks = background_tasks
 
     async def _save_photos(self, id, photos: list[UploadFile] | None):
         for number, photo in enumerate(photos):
@@ -29,13 +36,18 @@ class Service:
                 f.write(await photo.read())
 
     async def add_feedback(
-        self, feedback: FeedbackSchema, photos: list[UploadFile] | None = None
+        self,
+        feedback: FeedbackSchema,
+        photos: list[UploadFile] | None,
+        user: UserSchema | None,
     ) -> FeedbackSchema:
         feedback.id = uuid4()
 
         if photos:
-            await self._save_photos(feedback.id, photos)
+            self.background_tasks.add_task(
+                self._save_photos, feedback.id, photos
+            )
 
-        record: Feedback = await self.repository.add_feedback(feedback)
+        record: Feedback = await self.repository.add_feedback(feedback, user)
         feedback: FeedbackSchema = FeedbackSchema.model_validate(record)
         return feedback

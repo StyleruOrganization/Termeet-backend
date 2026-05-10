@@ -23,6 +23,7 @@ services:
       - ./backend/migrations/:/code/backend/migrations/
       - ./backend/docs/openapi.yaml:/code/backend/docs/openapi.yaml
       - ./certs/:/code/backend/certs/
+      - ./feedback_images/:/code/feedback_images/
     networks:
       - backend-net
     depends_on:
@@ -87,7 +88,7 @@ services:
     networks:
       - backend-net
     volumes:
-      - ./prometheus_data:/prometheus
+      - prometheus_data:/prometheus
       - ./prometheus_data/prometheus.yml:/etc/prometheus/prometheus.yml
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'

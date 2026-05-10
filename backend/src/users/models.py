@@ -2,7 +2,7 @@ from uuid import uuid4, UUID
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Computed, String, ARRAY
+from sqlalchemy import Computed, String, ARRAY, ForeignKey
 
 from backend.src.models import Base
 
@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from backend.src.meetings.models import Meetings
     from backend.src.teams.models import Teams
     from backend.src.auth.models import OAuthAccount
+    from backend.src.feedback.models import Feedback
 
 
 class Users(Base):
@@ -39,6 +40,8 @@ class Users(Base):
     meetings_participant: Mapped[Optional[list["Meetings"]]] = relationship(
         back_populates="participants", secondary="meetings_users"
     )
+
+    feedbacks: Mapped[Optional["Feedback"]] = relationship(back_populates="user")
 
     teams: Mapped[Optional[list["Teams"]]] = relationship(
         back_populates="user"

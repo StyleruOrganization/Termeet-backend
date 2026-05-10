@@ -1,5 +1,33 @@
 components:
   schemas:
+    Body_send_feedback_feedback_send_post:
+      properties:
+        communication_channel:
+          $ref: '#/components/schemas/CommunicationChannel'
+        contact:
+          title: Contact
+          type: string
+        message:
+          title: Message
+          type: string
+        photos:
+          anyOf:
+          - items:
+              format: binary
+              type: string
+            type: array
+          - type: 'null'
+          title: Photos
+        type:
+          $ref: '#/components/schemas/FeedbackType'
+      required:
+      - photos
+      - type
+      - communication_channel
+      - contact
+      - message
+      title: Body_send_feedback_feedback_send_post
+      type: object
     Code:
       properties:
         code:
@@ -11,6 +39,12 @@ components:
       - code
       title: Code
       type: object
+    CommunicationChannel:
+      enum:
+      - EMAIL
+      - TELEGRAM
+      title: CommunicationChannel
+      type: string
     Email:
       properties:
         email:
@@ -31,6 +65,40 @@ components:
       - detail
       title: ErrorResponse
       type: object
+    Feedback:
+      properties:
+        communication_channel:
+          $ref: '#/components/schemas/CommunicationChannel'
+        contact:
+          title: Contact
+          type: string
+        id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Id
+        message:
+          title: Message
+          type: string
+        type:
+          $ref: '#/components/schemas/FeedbackType'
+      required:
+      - type
+      - communication_channel
+      - contact
+      - message
+      title: Feedback
+      type: object
+    FeedbackType:
+      enum:
+      - HELP
+      - SUGGESTION
+      - BUG
+      - PARTNERSHIP
+      - OTHER
+      title: FeedbackType
+      type: string
     HTTPValidationError:
       properties:
         detail:
@@ -691,6 +759,53 @@ paths:
         \u043D\u0434\u0435\u043A\u0441\u0430"
       tags:
       - Auth
+  /feedback/send:
+    post:
+      description: "\u041E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0435\u0442 \u043E\
+        \u0442\u0437\u044B\u0432"
+      operationId: send_feedback_feedback_send_post
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_send_feedback_feedback_send_post'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Feedback'
+          description: Successful Response
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: "\u0421\u0440\u043E\u043A \u0434\u0435\u0439\u0441\u0442\u0432\
+            \u0438\u044F \u0442\u043E\u043A\u0435\u043D\u0430 \u0438\u0441\u0442\u0435\
+            \u043A                 \u041D\u0435 \u043F\u0440\u0430\u0432\u0438\u043B\
+            \u044C\u043D\u044B\u0439 \u0442\u0438\u043F \u0442\u043E\u043A\u0435\u043D\
+            \u0430"
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: "\u041E\u0431\u044A\u0435\u043A\u0442 \u043D\u0435 \u043D\u0430\
+            \u0439\u0434\u0435\u043D"
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: "\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u043E\u0442\
+        \u0437\u044B\u0432"
+      tags:
+      - Feedback
   /meet/create:
     post:
       description: "\u0421\u043E\u0437\u0434\u0430\u0435\u0442 \u0441\u043B\u043E\u0442\
@@ -1103,6 +1218,17 @@ paths:
         \u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u0435\u043C"
       tags:
       - Meet
+  /metrics:
+    get:
+      description: Endpoint that serves Prometheus metrics.
+      operationId: metrics_metrics_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+      summary: Metrics
   /users/me:
     get:
       description: "\u041F\u043E\u043B\u0443\u0447\u0430\u0435\u0442 \u044E\u0437\u0435\

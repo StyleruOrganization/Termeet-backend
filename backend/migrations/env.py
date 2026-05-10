@@ -12,6 +12,7 @@ from backend.src.meetings.models import Meetings  # noqa
 from backend.src.teams.models import Teams  # noqa
 from backend.src.users.models import Users  # noqa
 from backend.src.auth.models import OAuthAccount  # noqa
+from backend.src.feedback.models import Feedback  # noqa
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -33,7 +33,7 @@ router = APIRouter(prefix="/feedback", tags=["Feedback"])
 )
 async def send_feedback(
     background_tasks: BackgroundTasks,
-    photos: list[UploadFile] | None,
+    photos: list[UploadFile] | None = None,
     user: UserSchema | None = Depends(get_current_active_user),
     feedback: Feedback = Depends(feedback_as_form),
     session: AsyncSession = Depends(get_async_session),

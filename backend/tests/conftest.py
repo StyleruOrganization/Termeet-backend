@@ -1,4 +1,4 @@
-import pytest
+import pytest_asyncio
 import json
 
 from sqlalchemy import delete
@@ -16,7 +16,7 @@ from backend.src.teams.models import Teams  # noqa
 PROD_DB_URL = config.prod_db.db_url
 
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session")
 async def engine():
     engine = create_async_engine(url=PROD_DB_URL)
 
@@ -28,18 +28,19 @@ async def engine():
     await engine.dispose()
 
 
-@pytest.fixture()
+@pytest_asyncio.fixture()
 async def session_factory(engine):
     return async_sessionmaker(engine, expire_on_commit=False)
 
 
-@pytest.fixture()
+@pytest_asyncio.fixture()
 async def session(session_factory):
     async with session_factory() as session:
-        yield session
+        async with session.begin():
+            yield session
 
 
-@pytest.fixture()
+@pytest_asyncio.fixture()
 async def load_json_data() -> dict:
     with open(
         "backend/tests/records_nologin.json",
@@ -50,7 +51,7 @@ async def load_json_data() -> dict:
         return data
 
 
-@pytest.fixture()
+@pytest_asyncio.fixture()
 async def seed_db(
         session: AsyncSession,
         load_json_data: dict

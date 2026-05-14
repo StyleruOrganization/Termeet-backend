@@ -2,102 +2,175 @@ from uuid import UUID
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import select
-from fastapi import HTTPException
+from sqlalchemy.orm import selectinload
+from fastapi import HTTPException, status
 
-from .repositories import Repository
-from .models import Meetings
+from backend.src.meetings.repositories import Repository
+from backend.src.meetings.models import Meetings
+from backend.src.users.schemas import UserSchema
 from backend.src.users.models import Users  # noqa:
 from backend.src.teams.models import Teams  # noqa:
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.ext.asyncio import AsyncSession, AsyncResult
     from sqlalchemy import Select
-    from sqlalchemy.engine import Result
+    from backend.src.meetings.schemas import MeetCreate
 
 
-# Для незалогинов
 class Infrastructure(Repository):
     def __init__(self, session: AsyncSession):
         super().__init__(session)
 
-    async def get_meeting(self, id: UUID) -> Optional[Meetings]:
-        query: Select = select(
-            Meetings.id,
-            Meetings.name,
-            Meetings.description,
-            Meetings.link,
-            Meetings.duration,
-            Meetings.data_range,
-            Meetings.slots,
-            Meetings.emails
-            ).where(Meetings.id == id)
+    async def get_cached_user(self, user: UserSchema) -> Optional[Users]:
+        user_cache = self.session.info.get("user_cache", {})
+        cached_user: Users = user_cache.get(user.id)
 
-        result: Result = await self.session.execute(query)
+        return cached_user
 
-        record: Optional[Meetings] = result.one_or_none()
+    async def get_meeting_with_participants(self, id: UUID) -> Meetings:
+        query: Select = (
+            select(Meetings)
+            .options(selectinload(Meetings.participants))
+            .where(Meetings.id == id)
+        )
+        result: AsyncResult = await self.session.execute(query)
+        meeting: Meetings = result.scalar_one_or_none()
+
+        if not meeting:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Meeting not found",
+            )
+
+        return meeting
+
+    async def get_meeting(self, id: UUID) -> Meetings:
+        record: Meetings | None = await self.session.get(Meetings, id)
 
         if not record:
-            raise HTTPException(status_code=404, detail="Meeting not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Meeting not found",
+            )
 
         return record
 
-    async def create_meeting(self, meeting: dict) -> Optional[Meetings]:
-        object = Meetings(
-            name=meeting["name"],
-            description=meeting["description"],
-            link=meeting["link"],
-            duration=meeting["duration"],
-            data_range=meeting["dataRange"],
-            slots=[]
-        )
+    async def create_meeting(
+        self, meeting: MeetCreate, user: UserSchema | None
+    ) -> Optional[Meetings]:
+
+        object: Meetings = Meetings(**meeting.model_dump(by_alias=True))
+
+        if user:
+            # Достаем пользователя из словаря сессии
+            cached_user = await self.get_cached_user(user)
+            object.owner = cached_user
+
         self.session.add(object)
-        await self.session.commit()  # Разберись потом, зачем он нужен
+        await self.session.flush()
         return object
 
     async def edit_meeting(
-            self, id: UUID, meeting: dict
-            ) -> Optional[Meetings]:
-        query: Select = select(
-            Meetings
-            ).where(Meetings.id == id)
+        self, record: Meetings, meeting: MeetCreate
+    ) -> Optional[Meetings]:
 
-        result: Result = await self.session.execute(query)
+        for key, value in meeting.model_dump().items():
+            setattr(record, key, value)
 
-        record: Optional[Meetings] = result.scalar_one_or_none()
+        record.data_range = meeting.dataRange
 
-        if not record:
-            raise HTTPException(status_code=404, detail="Meeting not found")
-
-        record.name = meeting["name"]
-        record.description = meeting["description"]
-        record.link = meeting["link"]
-        record.duration = meeting["duration"]
-        record.data_range = meeting["dataRange"]
-
-        await self.session.commit()
-
+        self.session.add(record)
+        await self.session.flush()
         return record
 
-    async def add_slots(self, id: UUID, name: str, slots: list):
-        query: Select = select(
-            Meetings
-            ).where(Meetings.id == id)
+    async def add_slots(
+        self, name: str, slots: list, meeting: Meetings, user: Users | None
+    ):
 
-        result: Result = await self.session.execute(query)
+        if user:
+            meeting.participants.append(user)
 
-        # Список из словарей
-        record: Optional[Meetings] = result.scalar_one_or_none()
+        current_slots = meeting.slots.copy() if meeting.slots else []
 
-        if not record:
-            raise HTTPException(status_code=404, detail="Meeting not found")
-
-        current_slots = (
-            record.slots.copy() if record.slots else []
+        current_slots.append(
+            {"name": name,
+             "slots": slots,
+             "user_id": str(user.id) if user else None}
         )
 
-        # Можно сделать чтобы и в БД по умолчанию пустой список
-        current_slots.append({name: slots})
+        meeting.slots = current_slots
 
-        record.slots = current_slots
+        self.session.add(meeting)
+        await self.session.flush()
 
-        await self.session.commit()
+    async def edit_slots(
+        self, id: UUID, name: str, slots: list, user: UserSchema | None
+    ):
+        meeting: Meetings = await self.get_meeting_with_participants(id)
+
+        # Достаем пользователя из словаря сессии
+        cached_user = await self.get_cached_user(user)
+
+        if cached_user not in meeting.participants:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not a participant of this meeting",
+            )
+
+        current_slots = meeting.slots.copy() if meeting.slots else []
+
+        for slot in current_slots:
+            if slot.get("user_id") == str(user.id):
+                current_slots.remove(slot)
+                break
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Slots for this user not found in this meeting",
+            )
+
+        current_slots.append(
+            {"name": name,
+             "slots": slots,
+             "user_id": str(user.id) if user else None}
+        )
+
+        meeting.slots = current_slots
+
+        self.session.add(meeting)
+        await self.session.flush()
+
+    async def delete_slots_of_user(
+        self, meeting: Meetings, username: str, user: UserSchema | None
+    ):
+
+        current_slots = meeting.slots.copy() if meeting.slots else []
+
+        for slot in current_slots:
+            if username == slot["name"]:
+
+                if (slot["user_id"] is not None):
+                    if user := (await self.session.get(Users, slot["user_id"])):
+                        meeting.participants.remove(user)
+                        # Такого по сути быть не может, но оставил потому что это поле
+                        # хранится в JSONB и если пользователь удалится,
+                        # то может остаться "мертвый" user_id в слотах,
+                        # который будет мешать удалению слотов
+                    else:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail="User not found",
+                        )
+
+                current_slots.remove(slot)
+                break
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Slots for this user not found in this meeting",
+            )
+
+        meeting.slots = current_slots
+
+        self.session.add(meeting)
+        await self.session.flush()

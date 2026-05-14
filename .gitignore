@@ -4,4 +4,7 @@ __pycache__
 .vscode
 .venv
 .venv/
-frontend
+frontend/
+certs/
+feedback_images/
+Отправить Кириллу.txt

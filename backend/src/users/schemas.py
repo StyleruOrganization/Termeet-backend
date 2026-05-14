@@ -1,0 +1,17 @@
+from uuid import UUID
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict
+
+
+class UserSchema(BaseModel):
+    id: UUID
+    first_name: str
+    last_name: str
+    nickname: Optional[str]
+    is_active: bool
+    is_verified: bool
+    email: str
+    additional_emails: Optional[list]
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)

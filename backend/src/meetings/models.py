@@ -27,7 +27,9 @@ class Meetings(Base):
             f"DATA_RANGE {self.data_range} "
             f"SLOTS {self.slots} "
             f"EMAILS {self.emails}>"
-            )
+            f"OWNER_ID {self.owner_id} "
+            f"TEAM_ID {self.team_id}>"
+        )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -35,11 +37,11 @@ class Meetings(Base):
     link: Mapped[Optional[str]] = mapped_column(String(256))
     duration: Mapped[Optional[str]]
 
-    # Здесь скорее всего надо поправить на ARRAY
     data_range: Mapped[list[list[str]]] = mapped_column(JSONB, nullable=False)
 
-    slots: Mapped[Optional[list]] = mapped_column(JSONB)
-    # Здесь скорее всего надо поправить на ARRAY
+    slots: Mapped[Optional[list]] = mapped_column(
+        JSONB, default=lambda: [], server_default="[]"
+    )
 
     emails: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String))
 
@@ -52,16 +54,13 @@ class Meetings(Base):
     )
 
     participants: Mapped[Optional[list["Users"]]] = relationship(
-        back_populates="meetings_participant",
-        secondary="meetings_users"
+        back_populates="meetings_participant", secondary="meetings_users"
     )
 
     team_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("teams.id"), nullable=True
     )
-    team: Mapped[Optional["Teams"]] = relationship(
-        back_populates="meetings"
-        )
+    team: Mapped[Optional["Teams"]] = relationship(back_populates="meetings")
 
 
 class MeetingsUsers(Base):

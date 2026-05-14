@@ -20,4 +20,6 @@ docker-compose-prod.yml
 
 README.md
 
+frontend/
+
 backend/tests/

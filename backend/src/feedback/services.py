@@ -66,3 +66,13 @@ class Service:
 
         feedback: FeedbackSchema = FeedbackSchema.model_validate(record)
         return feedback
+
+    async def get_all_feedbacks(self) -> list[FeedbackSchema]:
+
+        records: list[Feedback] = await self.repository.get_all_feedbacks()
+
+        feedbacks: list[FeedbackSchema] = [
+            FeedbackSchema.model_validate(f) for f in records
+        ]
+
+        return feedbacks

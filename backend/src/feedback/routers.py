@@ -40,3 +40,22 @@ async def send_feedback(
 ):
     service = Service(session, background_tasks, rabbit)
     return await service.add_feedback(feedback, photos, user)
+
+
+@router.get(
+    "/get-all",
+    summary="Получить все отзывы",
+    description="Получает все отзывы",
+    response_model=list[Feedback],
+    responses={
+        404: {
+            "description": "Объект не найден",
+            "model": ErrorResponse,
+        },
+    }
+)
+async def get_all_feedbacks(
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = Service(session)
+    return await service.get_all_feedbacks()

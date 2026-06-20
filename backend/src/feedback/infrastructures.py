@@ -1,11 +1,14 @@
-from uuid import UUID
 from typing import TYPE_CHECKING
+
+from sqlalchemy import select
+from fastapi import HTTPException, status
+
 from backend.src.feedback.repositories import Repository
 from backend.src.feedback.models import Feedback
-from backend.src.users.models import Users
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy import Select
+    from sqlalchemy.ext.asyncio import AsyncSession, AsyncResult
     from backend.src.feedback.schemas import Feedback as FeedbackSchema
     from backend.src.users.schemas import UserSchema
 
@@ -25,3 +28,16 @@ class Infrastructure(Repository):
         self.session.add(record)
         await self.session.flush()
         return record
+
+    async def get_all_feedbacks(self) -> list[Feedback]:
+        query: Select = select(Feedback)
+        result: AsyncResult = await self.session.scalars(query)
+        feedbacks: list[Feedback] = result.all()
+
+        if feedbacks == []:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Feedbacks not found",
+            )
+
+        return feedbacks

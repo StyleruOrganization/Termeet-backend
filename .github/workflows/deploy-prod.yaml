@@ -4,8 +4,9 @@ run-name: "Deploy Prod Backend"
 on:
   push:
     branches: ["main"]
+  workflow_dispatch:
 
-
+    
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -27,6 +28,15 @@ jobs:
             -t cr.yandex/${{ secrets.CONTAINER_REGISTRY }}/backend-prod .
 
           docker push cr.yandex/${{ secrets.CONTAINER_REGISTRY }}/backend-prod
+
+      - name: Copy docker-compose to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose-prod.yml"
+          target: "backend-prod"
 
       - name: Deploy to server
 

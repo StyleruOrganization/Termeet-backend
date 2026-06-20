@@ -71,13 +71,30 @@ class ResetPasswordConfig(ConfigBase):
     RESET_PASSWORD_LINK: str
     RESET_PASSWORD_TOKEN_EXPIRE_MINUTES: int = 15
 
+
+class RabbitMQConfig(ConfigBase):
+    model_config = SettingsConfigDict(env_prefix="RABBIT_")
+
+    HOST: str
+    PORT: int
+    USER: str
+    PASSWORD: str
+
+    @property
+    def rb_url(self):
+        return f"amqp://{self.USER}:{self.PASSWORD}@{self.HOST}:{self.PORT}/"
+
+
 class Config(BaseSettings):
     prod_db: ProdDatabaseConfig = Field(default_factory=ProdDatabaseConfig)
     yandex_auth: YandexAuthConfig = Field(default_factory=YandexAuthConfig)
     auth_jwt: AuthJWTconfig = Field(default_factory=AuthJWTconfig)
     cookies: CookiesConfig = Field(default_factory=CookiesConfig)
     email: EmailConfig = Field(default_factory=EmailConfig)
-    reset_password: ResetPasswordConfig = Field(default_factory=ResetPasswordConfig)
+    reset_password: ResetPasswordConfig = Field(
+        default_factory=ResetPasswordConfig
+    )
+    rabbitmq: RabbitMQConfig = Field(default_factory=RabbitMQConfig)
 
     @classmethod
     def load(cls) -> "Config":

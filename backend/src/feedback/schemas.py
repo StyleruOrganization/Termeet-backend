@@ -2,7 +2,6 @@ from enum import Enum
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
-from fastapi import Form
 
 
 class FeedbackType(str, Enum):

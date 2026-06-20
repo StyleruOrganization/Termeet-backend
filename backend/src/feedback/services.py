@@ -3,6 +3,7 @@ from uuid import uuid4
 from pathlib import Path
 
 from fastapi import UploadFile
+import aio_pika
 
 from backend.src.feedback.infrastructures import Infrastructure
 from backend.src.feedback.schemas import Feedback as FeedbackSchema
@@ -10,6 +11,7 @@ from backend.src.feedback.schemas import Feedback as FeedbackSchema
 if TYPE_CHECKING:
     from fastapi import BackgroundTasks
     from sqlalchemy.ext.asyncio import AsyncSession
+    from backend.src.broker import RabbitMQClient
     from backend.src.users.schemas import UserSchema
     from backend.src.feedback.schemas import Feedback
 
@@ -19,9 +21,11 @@ class Service:
         self,
         session: AsyncSession = None,
         background_tasks: BackgroundTasks = None,
+        rabbit: RabbitMQClient = None,
     ):
         self.repository = Infrastructure(session)
         self.background_tasks = background_tasks
+        self.rabbit = rabbit
 
     async def _save_photos(self, id, photos: list[UploadFile] | None):
         for number, photo in enumerate(photos):
@@ -35,6 +39,15 @@ class Service:
             with open(file_path, "wb") as f:
                 f.write(await photo.read())
 
+    async def _sent_to_rabbit(self, feedback: FeedbackSchema):
+
+        message: aio_pika.Message = aio_pika.Message(
+            body=feedback.model_dump_json().encode(),
+            content_type="application/json",
+        )
+
+        await self.rabbit.publish("feedback_queue", message)
+
     async def add_feedback(
         self,
         feedback: FeedbackSchema,
@@ -43,11 +56,13 @@ class Service:
     ) -> FeedbackSchema:
         feedback.id = uuid4()
 
+        self.background_tasks.add_task(self._sent_to_rabbit, feedback)
         if photos:
             self.background_tasks.add_task(
                 self._save_photos, feedback.id, photos
             )
 
         record: Feedback = await self.repository.add_feedback(feedback, user)
+
         feedback: FeedbackSchema = FeedbackSchema.model_validate(record)
         return feedback

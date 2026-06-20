@@ -1,10 +1,9 @@
-from typing import TYPE_CHECKING
-
-from fastapi import APIRouter, Depends, UploadFile, BackgroundTasks
+from fastapi import APIRouter, Depends, UploadFile, BackgroundTasks, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.src.schemas import ErrorResponse
-from backend.src.dependencies import get_async_session
+from backend.src.broker import RabbitMQClient
+from backend.src.dependencies import get_async_session, get_rabbit
 from backend.src.feedback.schemas import Feedback
 from backend.src.feedback.services import Service
 from backend.src.feedback.dependencies import feedback_as_form
@@ -33,10 +32,11 @@ router = APIRouter(prefix="/feedback", tags=["Feedback"])
 )
 async def send_feedback(
     background_tasks: BackgroundTasks,
-    photos: list[UploadFile] | None = None,
+    photos: list[UploadFile] | None = File(default=None),
     user: UserSchema | None = Depends(get_current_active_user),
     feedback: Feedback = Depends(feedback_as_form),
     session: AsyncSession = Depends(get_async_session),
+    rabbit: RabbitMQClient = Depends(get_rabbit),
 ):
-    service = Service(session, background_tasks)
+    service = Service(session, background_tasks, rabbit)
     return await service.add_feedback(feedback, photos, user)

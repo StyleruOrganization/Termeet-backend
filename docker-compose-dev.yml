@@ -32,17 +32,20 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    hostname: rabbitmq-local
-    container_name: rabbitmq-local
+    hostname: rabbitmq-dev
+    container_name: rabbitmq-dev
     ports:
-      - "5673:5672"  # Поменял порт на отличный от prod-а
-      - "15673:15672"
+      - "5673:5672"
+    environment:
+      VIRTUAL_HOST: rabbitmq.termeet-dev.ru
+      VIRTUAL_PORT: 15672
     env_file:
       - .env
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     networks:
       - backend-net
+      - nginx-proxy
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s

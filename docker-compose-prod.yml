@@ -31,23 +31,27 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    hostname: rabbitmq-local
-    container_name: rabbitmq-local
+    hostname: rabbitmq-prod
+    container_name: rabbitmq-prod
     ports:
       - "5672:5672"
-      - "15672:15672"
+    environment:
+      VIRTUAL_HOST: rabbitmq.termeet.tech
+      VIRTUAL_PORT: 15672
     env_file:
       - .env
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     networks:
       - backend-net
+      - nginx-proxy
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 30s
+
 
   postgres:
     image: postgres:17-alpine

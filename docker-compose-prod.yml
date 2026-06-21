@@ -20,8 +20,10 @@ services:
       sh -c "alembic -c backend/alembic.ini upgrade head && \
       uvicorn backend.src.main:app --host 0.0.0.0 --port 8000"
     environment:
-      - VIRTUAL_PORT=8000
-      - VIRTUAL_HOST=backend.termeet.tech
+      VIRTUAL_PORT: 8000
+      VIRTUAL_HOST: backend.termeet.tech
+      LETSENCRYPT_HOST: backend.termeet-dev.ru
+      LETSENCRYPT_EMAIL: maklakov.daniils@yandex.ru
     networks:
       - backend-net
       - nginx-proxy
@@ -41,6 +43,8 @@ services:
     environment:
       VIRTUAL_HOST: rabbitmq.termeet.tech
       VIRTUAL_PORT: 15672
+      LETSENCRYPT_HOST: rabbitmq.termeet.tech
+      LETSENCRYPT_EMAIL: maklakov.daniils@yandex.ru
     env_file:
       - .env
     volumes:

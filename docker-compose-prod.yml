@@ -40,11 +40,6 @@ services:
     container_name: rabbitmq-prod
     ports:
       - "5672:5672"
-    environment:
-      VIRTUAL_HOST: rabbitmq.termeet.tech
-      VIRTUAL_PORT: 15672
-      LETSENCRYPT_HOST: rabbitmq.termeet.tech
-      LETSENCRYPT_EMAIL: maklakov.daniils@yandex.ru
     env_file:
       - .env
     volumes:

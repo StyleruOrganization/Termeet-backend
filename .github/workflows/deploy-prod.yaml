@@ -20,7 +20,7 @@ jobs:
       - name: Check .env-example changes
         if: github.event_name == 'push'
         run: |
-          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "\.env-example"; then
+          if git diff --name-only HEAD^ HEAD | grep -q "\.env-example"; then
             echo "❌ .env-example изменился!"
             echo ""
             echo "Обнови .env на сервере, затем перезапусти workflow вручную:"

@@ -1,8 +1,13 @@
 from typing import TYPE_CHECKING
 from contextlib import asynccontextmanager
 
+from grpc import aio
 import yaml
 
+from backend.grpc.generated.service_pb2_grpc import (
+    add_FeedbackServicer_to_server,
+)
+from backend.grpc.grpc_service import FeedbackService
 from backend.src.broker import RabbitMQClient
 from backend.src.config import config
 
@@ -27,6 +32,17 @@ async def lifespan_broker(app: FastAPI):
 
 
 @asynccontextmanager
+async def lifespan_grpc(app: FastAPI):
+    server = aio.server()
+    add_FeedbackServicer_to_server(FeedbackService(), server)
+    server.add_insecure_port("[::]:50051")
+    await server.start()
+    yield
+
+    await server.stop(grace=5)
+
+
+@asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with lifespan_docs(app), lifespan_broker(app):
+    async with lifespan_docs(app), lifespan_broker(app), lifespan_grpc(app):
         yield

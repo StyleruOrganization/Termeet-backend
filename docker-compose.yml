@@ -51,7 +51,7 @@ services:
 
   postgres:
     image: postgres:17-alpine
-    container_name: postgres-local
+    container_name: postgres-backend-local
     env_file:
       - .env
     ports:

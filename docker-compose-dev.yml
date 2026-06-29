@@ -40,9 +40,9 @@ services:
     ports:
       - "5673:5672"
     environment:
-      VIRTUAL_HOST: rabbitmq.termeet-dev.ru
+      VIRTUAL_HOST: rabbitmq-dev.termeet-dev.ru
       VIRTUAL_PORT: 15672
-      LETSENCRYPT_HOST: rabbitmq.termeet-dev.ru
+      LETSENCRYPT_HOST: rabbitmq-dev.termeet-dev.ru
       LETSENCRYPT_EMAIL: maklakov.daniils@yandex.ru
     env_file:
       - .env
@@ -78,6 +78,7 @@ services:
 
   minio:
     image: minio/minio
+    hostname: minio-dev
     container_name: minio-dev
     entrypoint: sh
     command: > 
@@ -94,7 +95,7 @@ services:
       - backend-net
       - nginx-proxy
     environment:
-      VIRTUAL_HOST: minio.termeet-dev.ru
+      VIRTUAL_HOST: minio-dev.termeet-dev.ru
       VIRTUAL_PORT: 9001
-      LETSENCRYPT_HOST: minio.termeet-dev.ru
+      LETSENCRYPT_HOST: minio-dev.termeet-dev.ru
       LETSENCRYPT_EMAIL: maklakov.daniils@yandex.ru

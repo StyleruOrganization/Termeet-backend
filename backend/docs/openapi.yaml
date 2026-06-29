@@ -71,6 +71,11 @@ components:
         contact:
           title: Contact
           type: string
+        count_photos:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Count Photos
         id:
           anyOf:
           - format: uuid

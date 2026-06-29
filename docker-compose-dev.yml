@@ -8,6 +8,7 @@ networks:
 volumes:
   postgres_data:
   rabbitmq-data:
+  minio_data:
 
 services:  
 
@@ -72,3 +73,25 @@ services:
       retries: 10
       start_period: 30s
       start_interval: 1s
+
+  minio:
+    image: minio/minio
+    container_name: minio-local
+    entrypoint: sh
+    command: > 
+      -c 'mkdir -p /data/test-bucket
+      && minio server /data'
+    volumes:
+      - minio_data:/data
+    env_file:
+      - .env
+    ports: 
+      - 9001:9000
+      - 9002:9001
+    networks:
+      - backend-net
+    environment:
+      VIRTUAL_HOST: minio.termeet-dev.ru
+      VIRTUAL_PORT: 9001
+      LETSENCRYPT_HOST: minio.termeet-dev.ru
+      LETSENCRYPT_EMAIL: maklakov.daniils@yandex.ru

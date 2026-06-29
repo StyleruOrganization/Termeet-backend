@@ -47,7 +47,7 @@ async def lifespan_grpc(app: FastAPI):
     add_MeetingCreateGRPCServicer_to_server(
         MeetingCreateService(async_session_maker), server
     )
-    server.add_insecure_port("[::]:50051")
+    server.add_insecure_port(f"{config.grpc.HOST}:{config.grpc.PORT}")
     await server.start()
     yield
 

@@ -94,6 +94,13 @@ class S3Config(ConfigBase):
     SECRET_KEY: str
 
 
+class GRPCConfig(ConfigBase):
+    model_config = SettingsConfigDict(env_prefix="GRPC_")
+
+    HOST: str
+    PORT: int
+
+
 class Config(BaseSettings):
     prod_db: ProdDatabaseConfig = Field(default_factory=ProdDatabaseConfig)
     yandex_auth: YandexAuthConfig = Field(default_factory=YandexAuthConfig)
@@ -105,6 +112,7 @@ class Config(BaseSettings):
     )
     rabbitmq: RabbitMQConfig = Field(default_factory=RabbitMQConfig)
     s3: S3Config = Field(default_factory=S3Config)
+    grpc: GRPCConfig = Field(default_factory=GRPCConfig)
 
     @classmethod
     def load(cls) -> "Config":

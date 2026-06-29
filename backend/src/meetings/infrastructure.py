@@ -56,7 +56,7 @@ class Infrastructure(Repository):
         return record
 
     async def create_meeting(
-        self, meeting: MeetCreate, user: UserSchema | None
+        self, meeting: MeetCreate, user: UserSchema | None = None
     ) -> Optional[Meetings]:
 
         object: Meetings = Meetings(**meeting.model_dump(by_alias=True))
@@ -93,9 +93,11 @@ class Infrastructure(Repository):
         current_slots = meeting.slots.copy() if meeting.slots else []
 
         current_slots.append(
-            {"name": name,
-             "slots": slots,
-             "user_id": str(user.id) if user else None}
+            {
+                "name": name,
+                "slots": slots,
+                "user_id": str(user.id) if user else None,
+            }
         )
 
         meeting.slots = current_slots
@@ -130,9 +132,11 @@ class Infrastructure(Repository):
             )
 
         current_slots.append(
-            {"name": name,
-             "slots": slots,
-             "user_id": str(user.id) if user else None}
+            {
+                "name": name,
+                "slots": slots,
+                "user_id": str(user.id) if user else None,
+            }
         )
 
         meeting.slots = current_slots
@@ -149,10 +153,13 @@ class Infrastructure(Repository):
         for slot in current_slots:
             if username == slot["name"]:
 
-                if (slot["user_id"] is not None):
-                    if user := (await self.session.get(Users, slot["user_id"])):
+                if slot["user_id"] is not None:
+                    if user := (
+                        await self.session.get(Users, slot["user_id"])
+                    ):
                         meeting.participants.remove(user)
-                        # Такого по сути быть не может, но оставил потому что это поле
+                        # Такого по сути быть не может,
+                        # но оставил потому что это поле
                         # хранится в JSONB и если пользователь удалится,
                         # то может остаться "мертвый" user_id в слотах,
                         # который будет мешать удалению слотов

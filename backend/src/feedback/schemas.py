@@ -23,5 +23,6 @@ class Feedback(BaseModel):
     communication_channel: CommunicationChannel
     contact: str
     message: str
+    count_photos: int | None = None
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)

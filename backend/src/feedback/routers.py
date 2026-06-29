@@ -1,9 +1,14 @@
 from fastapi import APIRouter, Depends, UploadFile, BackgroundTasks, File
 from sqlalchemy.ext.asyncio import AsyncSession
+from types_aiobotocore_s3.client import S3Client
 
 from backend.src.schemas import ErrorResponse
 from backend.src.broker import RabbitMQClient
-from backend.src.dependencies import get_async_session, get_rabbit
+from backend.src.dependencies import (
+    get_async_session,
+    get_rabbit,
+    get_s3_client,
+)
 from backend.src.feedback.schemas import Feedback
 from backend.src.feedback.services import Service
 from backend.src.feedback.dependencies import feedback_as_form
@@ -37,8 +42,9 @@ async def send_feedback(
     feedback: Feedback = Depends(feedback_as_form),
     session: AsyncSession = Depends(get_async_session),
     rabbit: RabbitMQClient = Depends(get_rabbit),
+    s3_client: S3Client = Depends(get_s3_client),
 ):
-    service = Service(session, background_tasks, rabbit)
+    service = Service(session, background_tasks, rabbit, s3_client)
     return await service.add_feedback(feedback, photos, user)
 
 
@@ -52,7 +58,7 @@ async def send_feedback(
             "description": "Объект не найден",
             "model": ErrorResponse,
         },
-    }
+    },
 )
 async def get_all_feedbacks(
     session: AsyncSession = Depends(get_async_session),

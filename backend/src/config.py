@@ -85,6 +85,15 @@ class RabbitMQConfig(ConfigBase):
         return f"amqp://{self.USER}:{self.PASSWORD}@{self.HOST}:{self.PORT}/"
 
 
+class S3Config(ConfigBase):
+    model_config = SettingsConfigDict(env_prefix="S3_")
+
+    BUCKET_NAME: str
+    ENDPOINT: str
+    ACCESS_KEY: str
+    SECRET_KEY: str
+
+
 class Config(BaseSettings):
     prod_db: ProdDatabaseConfig = Field(default_factory=ProdDatabaseConfig)
     yandex_auth: YandexAuthConfig = Field(default_factory=YandexAuthConfig)
@@ -95,6 +104,7 @@ class Config(BaseSettings):
         default_factory=ResetPasswordConfig
     )
     rabbitmq: RabbitMQConfig = Field(default_factory=RabbitMQConfig)
+    s3: S3Config = Field(default_factory=S3Config)
 
     @classmethod
     def load(cls) -> "Config":

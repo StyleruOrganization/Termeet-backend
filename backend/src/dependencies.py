@@ -11,3 +11,7 @@ async def get_async_session():
 
 async def get_rabbit(request: Request):
     return request.app.state.rabbitmq
+
+
+async def get_s3_client(request: Request):
+    return request.app.state.s3_client

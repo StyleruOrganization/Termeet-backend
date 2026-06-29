@@ -2,14 +2,16 @@ from typing import TYPE_CHECKING
 from uuid import uuid4
 from pathlib import Path
 
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
 import aio_pika
 
+from backend.src.config import config
 from backend.src.feedback.infrastructures import Infrastructure
 from backend.src.feedback.schemas import Feedback as FeedbackSchema
 
 if TYPE_CHECKING:
     from fastapi import BackgroundTasks
+    from types_aiobotocore_s3.client import S3Client
     from sqlalchemy.ext.asyncio import AsyncSession
     from backend.src.broker import RabbitMQClient
     from backend.src.users.schemas import UserSchema
@@ -19,13 +21,15 @@ if TYPE_CHECKING:
 class Service:
     def __init__(
         self,
-        session: AsyncSession = None,
-        background_tasks: BackgroundTasks = None,
-        rabbit: RabbitMQClient = None,
+        session: AsyncSession | None = None,
+        background_tasks: BackgroundTasks | None = None,
+        rabbit: RabbitMQClient | None = None,
+        s3_client: S3Client | None = None,
     ):
         self.repository = Infrastructure(session)
         self.background_tasks = background_tasks
         self.rabbit = rabbit
+        self.s3_client = s3_client
 
     async def _save_photos(self, id, photos: list[UploadFile] | None):
         for number, photo in enumerate(photos):
@@ -55,6 +59,20 @@ class Service:
         user: UserSchema | None,
     ) -> FeedbackSchema:
         feedback.id = uuid4()
+
+        if photos:
+            feedback.count_photos = len(photos)
+
+        for number, photo in enumerate(photos):
+            try:
+                await self.s3_client.upload_fileobj(
+                    Fileobj=photo.file,
+                    Bucket=config.s3.BUCKET_NAME,
+                    Key=f"{feedback.id}/{feedback.id}_{number}.jpg",
+                    ExtraArgs={"ContentType": photo.content_type},
+                )
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
 
         self.background_tasks.add_task(self._sent_to_rabbit, feedback)
         if photos:

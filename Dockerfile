@@ -30,8 +30,8 @@ FROM python:3.14-alpine
 WORKDIR /code
 
 COPY --from=builder /code/.venv ./.venv
+COPY pyproject.toml pyproject.toml
 
 ENV PATH="/code/.venv/bin:$PATH"
 
-# Аккуратнее: переношу только backend
 COPY backend ./backend

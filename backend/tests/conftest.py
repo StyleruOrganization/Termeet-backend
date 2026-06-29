@@ -11,6 +11,8 @@ from backend.src.models import Base
 from backend.src.meetings.models import Meetings
 from backend.src.users.models import Users  # noqa
 from backend.src.teams.models import Teams  # noqa
+from backend.src.auth.models import OAuthAccount  # noqa
+from backend.src.feedback.models import Feedback  # noqa
 
 
 PROD_DB_URL = config.prod_db.db_url

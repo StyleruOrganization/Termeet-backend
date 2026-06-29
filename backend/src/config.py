@@ -71,13 +71,48 @@ class ResetPasswordConfig(ConfigBase):
     RESET_PASSWORD_LINK: str
     RESET_PASSWORD_TOKEN_EXPIRE_MINUTES: int = 15
 
+
+class RabbitMQConfig(ConfigBase):
+    model_config = SettingsConfigDict(env_prefix="RABBIT_")
+
+    HOST: str
+    PORT: int
+    USER: str
+    PASSWORD: str
+
+    @property
+    def rb_url(self):
+        return f"amqp://{self.USER}:{self.PASSWORD}@{self.HOST}:{self.PORT}/"
+
+
+class S3Config(ConfigBase):
+    model_config = SettingsConfigDict(env_prefix="S3_")
+
+    BUCKET_NAME: str
+    ENDPOINT: str
+    ACCESS_KEY: str
+    SECRET_KEY: str
+
+
+class GRPCConfig(ConfigBase):
+    model_config = SettingsConfigDict(env_prefix="GRPC_")
+
+    HOST: str
+    PORT: int
+
+
 class Config(BaseSettings):
     prod_db: ProdDatabaseConfig = Field(default_factory=ProdDatabaseConfig)
     yandex_auth: YandexAuthConfig = Field(default_factory=YandexAuthConfig)
     auth_jwt: AuthJWTconfig = Field(default_factory=AuthJWTconfig)
     cookies: CookiesConfig = Field(default_factory=CookiesConfig)
     email: EmailConfig = Field(default_factory=EmailConfig)
-    reset_password: ResetPasswordConfig = Field(default_factory=ResetPasswordConfig)
+    reset_password: ResetPasswordConfig = Field(
+        default_factory=ResetPasswordConfig
+    )
+    rabbitmq: RabbitMQConfig = Field(default_factory=RabbitMQConfig)
+    s3: S3Config = Field(default_factory=S3Config)
+    grpc: GRPCConfig = Field(default_factory=GRPCConfig)
 
     @classmethod
     def load(cls) -> "Config":

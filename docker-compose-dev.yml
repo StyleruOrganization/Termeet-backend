@@ -7,12 +7,16 @@ networks:
 
 volumes:
   postgres_data:
+  rabbitmq-data:
+  minio_data:
 
 services:  
 
   backend:
     image: cr.yandex/${CONTAINER_REGISTRY}/backend-dev
     container_name: backend-dev
+    ports:
+      - 50052:50052
     command: |
       sh -c "alembic -c backend/alembic.ini upgrade head && \
       uvicorn backend.src.main:app --host 0.0.0.0 --port 8000 --reload"
@@ -29,6 +33,30 @@ services:
     env_file:
       - .env
 
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    hostname: rabbitmq-dev
+    container_name: rabbitmq-dev
+    ports:
+      - "5673:5672"
+    environment:
+      VIRTUAL_HOST: rabbitmq-dev.termeet-dev.ru
+      VIRTUAL_PORT: 15672
+      LETSENCRYPT_HOST: rabbitmq-dev.termeet-dev.ru
+      LETSENCRYPT_EMAIL: maklakov.daniils@yandex.ru
+    env_file:
+      - .env
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - backend-net
+      - nginx-proxy
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   postgres:
     image: postgres:17-alpine
@@ -47,3 +75,27 @@ services:
       retries: 10
       start_period: 30s
       start_interval: 1s
+
+  minio:
+    image: minio/minio
+    hostname: minio-dev
+    container_name: minio-dev
+    entrypoint: sh
+    command: > 
+      -c 'mkdir -p /data/test-bucket
+      && minio server /data'
+    volumes:
+      - minio_data:/data
+    env_file:
+      - .env
+    ports: 
+      - 9001:9000
+      - 9002:9001
+    networks:
+      - backend-net
+      - nginx-proxy
+    environment:
+      VIRTUAL_HOST: minio-dev.termeet-dev.ru
+      VIRTUAL_PORT: 9001
+      LETSENCRYPT_HOST: minio-dev.termeet-dev.ru
+      LETSENCRYPT_EMAIL: maklakov.daniils@yandex.ru

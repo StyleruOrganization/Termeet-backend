@@ -1,82 +1,33 @@
-from textwrap import dedent
-import asyncio
-from aiosmtplib import SMTP
+from uuid import uuid4
+from typing import TYPE_CHECKING
 
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+from sqlalchemy import select
 
-from backend.src.users.schemas import UserSchema
+from backend.src.feedback.models import Feedback
+from backend.src.feedback.schemas import Feedback as FeedbackSchema
 
-
-async def send_email(
-    recipient: str, subject: str, plain_content: str, html_content: str = ""
-):
-    message = MIMEMultipart("alternative")
-    message["From"] = "maklakov.daniils@yandex.ru"
-    message["To"] = recipient
-    message["Subject"] = subject
-
-    plain_text_message = MIMEText(
-        plain_content,
-        "plain",
-        "utf-8",
-    )
-    message.attach(plain_text_message)
-
-    if html_content:
-        html_message = MIMEText(
-            html_content,
-            "html",
-            "utf-8",
-        )
-        message.attach(html_message)
-
-    smtp_client = SMTP(hostname="smtp.yandex.ru", port=465, use_tls=True)
-
-    async with smtp_client:
-        await smtp_client.login(
-            "maklakov.daniils@yandex.ru", "efkyznqxejhluixj"
-        )
-        await smtp_client.send_message(message)
-        print("Письмо успешно отправлено!")
+if TYPE_CHECKING:
+    from sqlalchemy import Select
+    from sqlalchemy.ext.asyncio import AsyncResult, AsyncSession
 
 
-async def send_verification_email(
-        user: UserSchema,
-        verification_link: str,
-):
-    recipient = user.email
-
-    subject = "Подтверждение письма"
-
-    plain_content = dedent(
-        f"""\
-        Дорогой(-ая) {recipient},
-
-        Please перейдите по ссылке, чтобы подтвердить свою почту:
-        {verification_link}
-        """
+async def test_get_all_feedbacks(session: AsyncSession):
+    feedback: FeedbackSchema = FeedbackSchema(
+        id=uuid4(),
+        type="HELP",
+        communication_channel="EMAIL",
+        contact="email",
+        message="Классное приложение",
     )
 
-    html_content = ...
-    await send_email(
-        recipient=recipient,
-        subject=subject,
-        plain_content=plain_content,
-        html_content=html_content
-    )
+    session.add(Feedback(**feedback.model_dump()))
+    await session.flush()
 
+    query: Select = select(Feedback)
+    result: AsyncResult = await session.scalars(query)
+    feedbacks: list[Feedback] = result.all()
 
-def test_smtp():
-    asyncio.run(
-        send_email(
-            "dpmaklakov@edu.hse.ru",
-            "Подтверждение письма",
-            "Йоу-йоу, успешный успех от тестового Termeet-а",
-        )
-    )
-
-    # message = MIMEMultipart("alternative")
-    # message["From"] = "maklakov.daniils@yandex.ru"
-    # message["To"] = recip
-    # efkyznqxejhluixj  # noqa
+    feedback_schemas: list[FeedbackSchema] = [
+        FeedbackSchema.model_validate(f) for f in feedbacks
+    ]
+    print(feedback_schemas)

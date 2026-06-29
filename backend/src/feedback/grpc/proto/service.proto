@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package service;
+
+enum FeedbackTypeGRPC {
+    HELP = 0;
+    SUGGESTION = 1;
+    BUG = 2;
+    PARTNERSHIP = 3;
+    OTHER = 4;
+}
+
+enum CommunicationChannelGRPC {
+    EMAIL = 0;
+    TELEGRAM = 1;
+}
+
+message FeedbackSchemaGRPC {
+    FeedbackTypeGRPC type = 1;
+    CommunicationChannelGRPC communication_channel = 2;
+    string contact = 3;
+    string message = 4;
+}
+
+message FeedbackResponseGRPC {
+    repeated FeedbackSchemaGRPC feedbacks = 1;
+}
+
+service FeedbackGRPC {
+    rpc GetAllFeedback (google.protobuf.Empty) returns (FeedbackResponseGRPC);
+}

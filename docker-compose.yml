@@ -1,12 +1,14 @@
-name: local_backend
+name: local-backend
 
 networks:
   backend-net:
 
 volumes:
   postgres_data:
-  grafana_data:
-  prometheus_data:
+  rabbitmq-data:
+  # grafana_data:
+  # prometheus_data:
+  minio_data:
 
 
 services:  
@@ -16,6 +18,7 @@ services:
     container_name: backend-local
     ports:
       - 8000:8000
+      - 50051:50051
     command: |
       sh -c "alembic -c backend/alembic.ini upgrade head && \
       uvicorn backend.src.main:app --host 0.0.0.0 --port 8000 --reload"
@@ -28,6 +31,9 @@ services:
       - backend-net
     depends_on:
       postgres:
+        condition: service_healthy
+        restart: true
+      rabbitmq:
         condition: service_healthy
         restart: true
     env_file:
@@ -46,7 +52,7 @@ services:
 
   postgres:
     image: postgres:17-alpine
-    container_name: postgres-local
+    container_name: postgres-backend-local
     env_file:
       - .env
     ports:
@@ -62,6 +68,26 @@ services:
       retries: 10
       start_period: 30s
       start_interval: 1s
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    hostname: rabbitmq-local
+    container_name: rabbitmq-local
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    env_file:
+      - .env
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   maildev:
     image: maildev/maildev
@@ -80,26 +106,43 @@ services:
       options:
         max-size: "1m"
 
-  prometheus:
-    image: prom/prometheus
-    container_name: prometheus
-    ports:
-      - 9090:9090
+  minio:
+    image: minio/minio
+    container_name: minio-local
+    entrypoint: sh
+    command: > 
+      -c 'mkdir -p /data/test-bucket
+      && minio server /data'
+    volumes:
+      - minio_data:/data
+    env_file:
+      - .env
+    ports: 
+      - 9000:9000
+      - 9001:9001
     networks:
       - backend-net
-    volumes:
-      - prometheus_data:/prometheus
-      - ./prometheus_data/prometheus.yml:/etc/prometheus/prometheus.yml
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
 
-  grafana:
-    image: grafana/grafana
-    container_name: grafana
-    ports:
-      - 3000:3000
-    networks:
-      - backend-net
-    volumes:
-      - ./grafana_data/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
-      - grafana_data:/var/lib/grafana
+  # prometheus:
+  #   image: prom/prometheus
+  #   container_name: prometheus
+  #   ports:
+  #     - 9090:9090
+  #   networks:
+  #     - backend-net
+  #   volumes:
+  #     - prometheus_data:/prometheus
+  #     - ./prometheus_data/prometheus.yml:/etc/prometheus/prometheus.yml
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+
+  # grafana:
+  #   image: grafana/grafana
+  #   container_name: grafana
+  #   ports:
+  #     - 3000:3000
+  #   networks:
+  #     - backend-net
+  #   volumes:
+  #     - ./grafana_data/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+  #     - grafana_data:/var/lib/grafana

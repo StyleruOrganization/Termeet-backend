@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package meeting_create;
+
+message DataRangeGRPC {
+    repeated string time_interval = 1;
+}
+
+message MeetingCreateRequestGRPC {
+    string name = 1;
+    repeated DataRangeGRPC data_range = 2;
+    string description = 3;
+    string duration = 4;
+    string link = 5;
+}
+
+message MeetingCreateResponseGRPC {
+    string hash = 1;
+}
+
+service MeetingCreateGRPC {
+    rpc create_meeting (MeetingCreateRequestGRPC) returns (MeetingCreateResponseGRPC);
+}

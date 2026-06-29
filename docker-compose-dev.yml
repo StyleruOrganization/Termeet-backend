@@ -89,8 +89,8 @@ services:
     env_file:
       - .env
     ports: 
-      - 9001:9000
-      - 9002:9001
+      - 9010:9000
+      - 9011:9001
     networks:
       - backend-net
       - nginx-proxy

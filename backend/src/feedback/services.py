@@ -59,20 +59,21 @@ class Service:
         user: UserSchema | None,
     ) -> FeedbackSchema:
         feedback.id = uuid4()
+        feedback.count_photos = 0
 
         if photos:
             feedback.count_photos = len(photos)
 
-        for number, photo in enumerate(photos):
-            try:
-                await self.s3_client.upload_fileobj(
-                    Fileobj=photo.file,
-                    Bucket=config.s3.BUCKET_NAME,
-                    Key=f"{feedback.id}/{feedback.id}_{number}.jpg",
-                    ExtraArgs={"ContentType": photo.content_type},
-                )
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
+            for number, photo in enumerate(photos):
+                try:
+                    await self.s3_client.upload_fileobj(
+                        Fileobj=photo.file,
+                        Bucket=config.s3.BUCKET_NAME,
+                        Key=f"{feedback.id}/{feedback.id}_{number}.jpg",
+                        ExtraArgs={"ContentType": photo.content_type},
+                    )
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=str(e))
 
         self.background_tasks.add_task(self._sent_to_rabbit, feedback)
         if photos:

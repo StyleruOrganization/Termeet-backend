@@ -18,13 +18,12 @@ jobs:
           fetch-depth: 2
 
       - name: Check .env-example changes
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.run_attempt == 1
         run: |
           if git diff --name-only HEAD^ HEAD | grep -q "\.env-example"; then
             echo "❌ .env-example изменился!"
             echo ""
-            echo "Обнови .env на сервере, затем перезапусти workflow вручную:"
-            echo "Actions → Deploy Prod Backend → Run workflow"
+            echo "Обнови .env на сервере, затем нажми 'Re-run failed jobs' или 'Re-run all jobs'."
             exit 1
           fi
 

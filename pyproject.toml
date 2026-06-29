@@ -27,6 +27,8 @@ dependencies = [
     "grpcio (>=1.81.1,<2.0.0)",
     "grpcio-tools (>=1.81.1,<2.0.0)",
     "mypy-protobuf (>=5.1.0,<6.0.0)",
+    "aioboto3 (>=15.5.0,<16.0.0)",
+    "types-aioboto3[s3] (>=15.5.0,<16.0.0)",
 ]
 
 [build-system]

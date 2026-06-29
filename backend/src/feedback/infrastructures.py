@@ -20,7 +20,17 @@ class Infrastructure(Repository):
     async def add_feedback(
         self, feedback: FeedbackSchema, user: UserSchema | None
     ) -> Feedback:
-        record = Feedback(**feedback.model_dump())
+        record = Feedback(
+            **feedback.model_dump(
+                include={
+                    "id",
+                    "type",
+                    "communication_channel",
+                    "contact",
+                    "message",
+                }
+            )
+        )
 
         if user:
             record.user_id = user.id

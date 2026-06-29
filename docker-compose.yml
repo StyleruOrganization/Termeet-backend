@@ -6,8 +6,9 @@ networks:
 volumes:
   postgres_data:
   rabbitmq-data:
-  grafana_data:
-  prometheus_data:
+  # grafana_data:
+  # prometheus_data:
+  minio_data:
 
 
 services:  
@@ -104,6 +105,23 @@ services:
       driver: "json-file"
       options:
         max-size: "1m"
+
+  minio:
+    image: minio/minio
+    container_name: minio-local
+    entrypoint: sh
+    command: > 
+      -c 'mkdir -p /data/test-bucket
+      && minio server /data'
+    volumes:
+      - minio_data:/data
+    env_file:
+      - .env
+    ports: 
+      - 9000:9000
+      - 9001:9001
+    networks:
+      - backend-net
 
   # prometheus:
   #   image: prom/prometheus

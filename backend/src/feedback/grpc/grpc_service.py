@@ -13,7 +13,7 @@ from backend.src.feedback.grpc.generated.service_pb2 import (
     CommunicationChannelGRPC,
 )
 
-from backend.src.feedback.services import Infrastructure
+from backend.src.feedback.infrastructures import Infrastructure
 
 if TYPE_CHECKING:
     from backend.src.feedback.models import Feedback

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, Response, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Depends, Form, Response, HTTPException
 from fastapi.responses import RedirectResponse
 from starlette import status
 
@@ -146,13 +146,18 @@ async def verify_token(
     "/confirm-email",
     summary="Подтверждение email",
     description="Подтверждает email, отправляет письмо с подтверждением",
+    responses={
+        503: {
+            "description": "Не получилось отправить письмо",
+            "model": ErrorResponse,
+        },
+    },
 )
 async def confirm_email(
-    background_tasks: BackgroundTasks,
     user: UserSchema = Depends(get_current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):
-    service = Service(session, background_tasks)
+    service = Service(session)
     await service.create_verification_token_and_send_email(user)
 
     return {"detail": "Email sent successfully"}
@@ -161,15 +166,23 @@ async def confirm_email(
 @router.post(
     "/reset-password",
     summary="Сброс пароля",
-    description="Подтверждает email, отправляет письмо с подтверждением, \
-                 отправляет письмо с ссылкой для сброса пароля",
+    description="Отправляет письмо со ссылкой для сброса пароля",
+    responses={
+        404: {
+            "description": "Аккаунта с этой почтой нет",
+            "model": ErrorResponse,
+        },
+        503: {
+            "description": "Не получилось отправить письмо",
+            "model": ErrorResponse,
+        },
+    },
 )
 async def reset_password(
-    background_tasks: BackgroundTasks,
     email: Email,
     session: AsyncSession = Depends(get_async_session),
 ):
-    service = Service(session, background_tasks)
+    service = Service(session)
     await service.create_reset_password_token_and_send_email(email)
 
     return {"detail": "Email sent successfully"}
@@ -223,15 +236,18 @@ async def verify_reset_password_token(
             "description": "Пользователь с эти email-ом уже существует",
             "model": ErrorResponse,
         },
+        503: {
+            "description": "Не получилось отправить письмо",
+            "model": ErrorResponse,
+        },
     },
 )
 async def default_register_user(
     response: Response,
-    background_tasks: BackgroundTasks,
     user_data: RegisterUserData,
     session: AsyncSession = Depends(get_async_session),
 ):
-    service = Service(session, background_tasks)
+    service = Service(session)
     user = await service.register_user(user_data)
 
     if user_data.do_verify_email:

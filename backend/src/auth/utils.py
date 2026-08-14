@@ -7,6 +7,7 @@ from email.utils import formataddr, make_msgid
 import jwt
 import bcrypt
 import aiosmtplib
+from fastapi import HTTPException
 
 from backend.src.config import config
 
@@ -101,7 +102,8 @@ async def validate_password(
 async def send_email(
     recipient: str, subject: str, plain_content: str, html_content: str = ""
 ):
-    sender = config.email.EMAIL_USERNAME or "noreply@termeet.tech"
+    mailbox = (config.email.EMAIL_USERNAME or "").strip()
+    sender = mailbox or "noreply@termeet.tech"
     message = EmailMessage()
     message["From"] = formataddr(("Termeet", sender))
     message["To"] = recipient
@@ -118,23 +120,41 @@ async def send_email(
         "sender": sender,
     }
 
-    if not config.email.USE_MAILDEV:
-        if not config.email.EMAIL_USERNAME or not config.email.EMAIL_PASSWORD:
-            logger.error(
-                "Email credentials are missing, skip send to %s", recipient
-            )
-            return
-        send_email_args["username"] = config.email.EMAIL_USERNAME
-        send_email_args["password"] = (
+    if config.email.USE_MAILDEV:
+        send_email_args["use_tls"] = False
+        send_email_args["start_tls"] = False
+    else:
+        password = (
             config.email.EMAIL_PASSWORD.get_secret_value()
+            if config.email.EMAIL_PASSWORD
+            else ""
         )
-        if config.email.EMAIL_PORT == 465:
-            send_email_args["use_tls"] = True
-        else:
+        if not mailbox or not password:
+            logger.error(
+                "Email credentials are missing, cannot send to %s", recipient
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="Failed to send email",
+            )
+        send_email_args["username"] = mailbox
+        send_email_args["password"] = password
+        # Яндекс: 465 — SSL сразу, 587 — сначала без шифрования, потом STARTTLS.
+        if config.email.EMAIL_PORT == 587:
+            send_email_args["use_tls"] = False
             send_email_args["start_tls"] = True
+        else:
+            send_email_args["use_tls"] = True
+            send_email_args["start_tls"] = False
 
     try:
         await aiosmtplib.send(message, **send_email_args)
         logger.info("Email sent to %s (%s)", recipient, subject)
+    except HTTPException:
+        raise
     except Exception:
         logger.exception("Failed to send email to %s", recipient)
+        raise HTTPException(
+            status_code=503,
+            detail="Failed to send email",
+        ) from None

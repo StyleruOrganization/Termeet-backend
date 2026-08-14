@@ -58,13 +58,15 @@ class CookiesConfig(ConfigBase):
 
 
 class EmailConfig(ConfigBase):
-    EMAIL_HOST: str
-    EMAIL_PORT: int
-    EMAIL_USERNAME: str | None
-    EMAIL_PASSWORD: SecretStr | None
+    # Яндекс: smtp.yandex.ru, SSL на 465, логин = полный адрес ящика,
+    # пароль = пароль приложения (не пароль аккаунта).
+    EMAIL_HOST: str = "smtp.yandex.ru"
+    EMAIL_PORT: int = 465
+    EMAIL_USERNAME: str | None = None
+    EMAIL_PASSWORD: SecretStr | None = None
     VERIFICATION_LINK: str
     VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 1440
-    USE_MAILDEV: bool
+    USE_MAILDEV: bool = False
 
 
 class ResetPasswordConfig(ConfigBase):

@@ -31,7 +31,6 @@ from backend.src.auth.utils import (
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-    from fastapi import BackgroundTasks
     from backend.src.users.models import Users
 
 
@@ -39,10 +38,8 @@ class Service:
     def __init__(
         self,
         session: AsyncSession = None,
-        background_tasks: BackgroundTasks = None,
     ):
         self.repository = Infrastructure(session)
-        self.background_tasks = background_tasks
 
     async def generate_yandex_oauth_redirect_url(self):
         query_params = {
@@ -201,12 +198,7 @@ class Service:
         query_string = parse.urlencode(query_params, quote_via=parse.quote)
         verification_link = f"{config.email.VERIFICATION_LINK}?{query_string}"
 
-        if self.background_tasks is None:
-            return
-
-        self.background_tasks.add_task(
-            self.send_verification_email, user, verification_link
-        )
+        await self.send_verification_email(user, verification_link)
 
     async def set_verify_user(self, user: UserSchema):
         user: Users = await self.repository.set_verify_user(user)
@@ -216,8 +208,11 @@ class Service:
     async def create_reset_password_token_and_send_email(self, email: Email):
         recipient = str(email.email).strip().lower()
         user = await self.repository.check_user_in_db_by_email(recipient)
-        if not user or self.background_tasks is None:
-            return
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User with this email not found",
+            )
 
         jwt_payload = {
             "sub": str(user.id),
@@ -240,9 +235,7 @@ class Service:
             f"{config.reset_password.RESET_PASSWORD_LINK}?{query_string}"
         )
 
-        self.background_tasks.add_task(
-            self.send_reset_password_email, recipient, reset_password_link
-        )
+        await self.send_reset_password_email(recipient, reset_password_link)
 
     async def send_reset_password_email(self, email, reset_password_link):
         recipient = email
@@ -261,15 +254,12 @@ class Service:
 
         html_content = template.render(reset_password_link=reset_password_link)
 
-        try:
-            return await send_email(
-                recipient=recipient,
-                subject=subject,
-                plain_content=plain_content,
-                html_content=html_content,
-            )
-        except Exception:
-            return None
+        await send_email(
+            recipient=recipient,
+            subject=subject,
+            plain_content=plain_content,
+            html_content=html_content,
+        )
 
     async def set_new_password(self, user: UserSchema, password: Password):
         password = password.password

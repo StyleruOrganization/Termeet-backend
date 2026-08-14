@@ -1,8 +1,9 @@
 from uuid import UUID, uuid4
+from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 
@@ -30,3 +31,9 @@ class OAuthAccount(Base):
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     user: Mapped["Users"] = relationship(back_populates="oauth_accounts")
+    access_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    refresh_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    scopes: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    token_expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

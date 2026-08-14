@@ -1,5 +1,6 @@
 from fastapi import HTTPException, status
 
+from sqlalchemy.orm import selectinload
 from sqlalchemy import delete, or_, select, update
 
 from backend.src.auth.models import OAuthAccount
@@ -50,11 +51,21 @@ class Infrastructure(Repository):
                 else item.model_dump()
                 for item in template
             ]
+        if "notify_on_vote" in data and data["notify_on_vote"] is not None:
+            record.notify_on_vote = data["notify_on_vote"]
+        if "notify_on_final" in data and data["notify_on_final"] is not None:
+            record.notify_on_final = data["notify_on_final"]
+        if "show_onboarding" in data and data["show_onboarding"] is not None:
+            record.show_onboarding = data["show_onboarding"]
 
         self.session.add(record)
         await self.session.flush()
-        await self.session.refresh(record)
-        return record
+        loaded = await self.session.execute(
+            select(Users)
+            .options(selectinload(Users.oauth_accounts))
+            .where(Users.id == user_id)
+        )
+        return loaded.scalar_one()
 
     async def search_users(self, query: str, current_id) -> list[UserSearchItem]:
         needle = (query or "").strip()

@@ -1,14 +1,17 @@
+from datetime import datetime, timedelta, timezone
 from textwrap import dedent
 from typing import TYPE_CHECKING
 from urllib import parse
-from datetime import timedelta
 
 import httpx
 from fastapi import HTTPException, status
 
 from backend.src.jinja_templates import templates
 from backend.src.users.schemas import UserSchema
-from backend.src.auth.infrastructure import Infrastructure
+from backend.src.integrations.yandex_telemost import (
+    YANDEX_INTEGRATION_SCOPES,
+)
+from backend.src.users.models import Users
 from backend.src.auth.schemas import (
     Code,
     Email,
@@ -31,7 +34,6 @@ from backend.src.auth.utils import (
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-    from backend.src.users.models import Users
 
 
 class Service:
@@ -41,12 +43,16 @@ class Service:
     ):
         self.repository = Infrastructure(session)
 
-    async def generate_yandex_oauth_redirect_url(self):
+    async def generate_yandex_oauth_redirect_url(self, intent: str = "login"):
         query_params = {
             "response_type": "code",
             "client_id": config.yandex_auth.CLIENT_ID,
             "redirect_uri": config.yandex_auth.REDIRECT_URI,
+            "scope": YANDEX_INTEGRATION_SCOPES,
+            "state": "link" if intent == "link" else "login",
         }
+        if intent == "link":
+            query_params["force_confirm"] = "yes"
 
         query_string = parse.urlencode(query_params, quote_via=parse.quote)
         base_url = "https://oauth.yandex.ru/authorize"
@@ -93,26 +99,69 @@ class Service:
 
         return user_data
 
-    async def auth_yandex_user(self, user_data: YandexUserData) -> UserSchema:
-
-        if user := (await self.repository.yandex_check_user_in_db(user_data)):
-            user: UserSchema = UserSchema.model_validate(user)
-            return user
-
-        if user := (
-            await self.repository.check_user_in_db_by_email(
-                user_data.default_email
-            )
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User with this email already exists",
+    async def auth_yandex_user(
+        self,
+        user_data: YandexUserData,
+        tokens: AuthTokens,
+        current_user: UserSchema | None = None,
+    ) -> UserSchema:
+        expires_at = None
+        if tokens.expires_in:
+            expires_at = datetime.now(timezone.utc) + timedelta(
+                seconds=tokens.expires_in
             )
 
-        user_data: UserData = UserData.from_yandex(user_data)
-        user: Users = await self.repository.register_user(user_data)
-        user: UserSchema = UserSchema.model_validate(user)
-        return user
+        existing = await self.repository.yandex_check_user_in_db(user_data)
+        email_user = await self.repository.check_user_in_db_by_email(
+            user_data.default_email
+        )
+
+        if current_user:
+            if existing and str(existing.id) != str(current_user.id):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="This Yandex account is already linked to another user",
+                )
+            record = await self.repository.get_user_by_id(current_user.id)
+            await self.repository.upsert_yandex_oauth(
+                record,
+                user_data,
+                tokens,
+                YANDEX_INTEGRATION_SCOPES,
+                expires_at,
+            )
+            return UserSchema.model_validate(record)
+
+        if existing:
+            await self.repository.upsert_yandex_oauth(
+                existing,
+                user_data,
+                tokens,
+                YANDEX_INTEGRATION_SCOPES,
+                expires_at,
+            )
+            return UserSchema.model_validate(existing)
+
+        if email_user:
+            await self.repository.upsert_yandex_oauth(
+                email_user,
+                user_data,
+                tokens,
+                YANDEX_INTEGRATION_SCOPES,
+                expires_at,
+            )
+            return UserSchema.model_validate(email_user)
+
+        created: UserData = UserData.from_yandex(user_data)
+        user: Users = await self.repository.register_user(created)
+        await self.repository.upsert_yandex_oauth(
+            user,
+            user_data,
+            tokens,
+            YANDEX_INTEGRATION_SCOPES,
+            expires_at,
+        )
+        return UserSchema.model_validate(user)
 
     async def create_tokens(self, user: UserSchema, only_access: bool = False):
         access_token = await self.create_access_token(user)

@@ -23,6 +23,7 @@ from backend.src.auth.dependencies import (
     get_current_auth_user_from_validation,
     get_current_auth_user_from_refresh,
     get_current_auth_user_from_reset_password,
+    get_optional_refresh_user,
     validate_login_user,
 )
 from backend.src.auth.utils import REFRESH_TOKEN_COOKIE
@@ -49,9 +50,11 @@ def set_refresh_cookie(response: Response, refresh_token: str) -> None:
                 фронтенд, с помощью которого потом можно получить в \
                 access и refresh токены от Яндекса",
 )
-async def get_yandex_oauth_url():
+async def get_yandex_oauth_url(intent: str = "login"):
+    if intent not in ("login", "link"):
+        intent = "login"
     service = Service()
-    url = await service.generate_yandex_oauth_redirect_url()
+    url = await service.generate_yandex_oauth_redirect_url(intent)
     return RedirectResponse(url=url, status_code=302)
 
 
@@ -81,6 +84,7 @@ async def auth_yandex_issue_jwt(
     response: Response,
     code: Code,
     session: AsyncSession = Depends(get_async_session),
+    cookie_user: UserSchema | None = Depends(get_optional_refresh_user),
 ):
     service = Service(session)
 
@@ -89,7 +93,10 @@ async def auth_yandex_issue_jwt(
         tokens.access_token
     )
 
-    user: UserSchema = await service.auth_yandex_user(user_data)
+    current = cookie_user if (code.state or "") == "link" else None
+    user: UserSchema = await service.auth_yandex_user(
+        user_data, tokens, current
+    )
     await service.set_verify_user(user)
 
     access_token, refresh_token = await service.create_tokens(user)

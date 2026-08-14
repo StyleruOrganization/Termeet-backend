@@ -3,6 +3,15 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 
+from backend.src.integrations.yandex_telemost import (
+    create_telemost_conference,
+    yandex_account_from_user,
+)
+from backend.src.notifications.meet_emails import (
+    notify_final_time,
+    notify_owner_participant_voted,
+)
+from backend.src.users.models import Users
 from backend.src.users.schemas import UserSchema
 from backend.src.meetings.infrastructure import Infrastructure
 from backend.src.meetings.live import meet_live_hub
@@ -124,8 +133,40 @@ class Service:
     async def create_meeting(
         self, meeting: MeetCreate, user: UserSchema | None
     ) -> MeetResponse:
+        if meeting.create_telemost and user:
+            owner = await self.repository.get_user_with_oauth(user.id)
+            account = yandex_account_from_user(owner) if owner else None
+            if account:
+                try:
+                    join_url = await create_telemost_conference(account)
+                    meeting = meeting.model_copy(update={"link": join_url})
+                except Exception:
+                    pass
         record: Meetings = await self.repository.create_meeting(meeting, user)
         return self._to_response(record, user)
+
+    async def _notify_owner_vote(
+        self,
+        record: "Meetings",
+        participant_name: str,
+        voter: UserSchema | None,
+    ) -> None:
+        if not record.owner_id:
+            return
+        if voter and str(voter.id) == str(record.owner_id):
+            return
+        owner = record.owner
+        if owner is None:
+            owner = await self.repository.session.get(Users, record.owner_id)
+        if owner is None:
+            return
+        await notify_owner_participant_voted(
+            owner.email,
+            getattr(owner, "notify_on_vote", True),
+            record.name,
+            record.id,
+            participant_name,
+        )
 
     async def edit_meeting(
         self, hash: UUID, meeting: MeetCreate, user: UserSchema | None
@@ -231,6 +272,7 @@ class Service:
 
         await self.repository.add_slots(slots.name, slots.slots, record, user)
         await self.notify_live(hash)
+        await self._notify_owner_vote(record, slots.name, user)
         return {"detail": "Slots added successfully"}
 
     async def edit_slots(
@@ -242,7 +284,9 @@ class Service:
                 detail="You must be authenticated to edit slots",
             )
 
-        record: Meetings = await self.repository.get_meeting(hash)
+        record: Meetings = await self.repository.get_meeting_with_participants(
+            hash
+        )
         if has_final_slot(record):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -251,6 +295,7 @@ class Service:
 
         await self.repository.edit_slots(hash, slots.name, slots.slots, user)
         await self.notify_live(hash)
+        await self._notify_owner_vote(record, slots.name, user)
         return {"detail": "Slots edited successfully"}
 
     async def set_final(
@@ -259,7 +304,9 @@ class Service:
         payload: MeetFinalUpdate,
         user: UserSchema | None,
     ) -> MeetResponse:
-        record: Meetings = await self.repository.get_meeting(hash)
+        record: Meetings = await self.repository.get_meeting_with_participants(
+            hash
+        )
         if not can_set_final(record, user):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -272,6 +319,17 @@ class Service:
             )
         await self.repository.set_final_slot(record, payload.slots)
         await self.notify_live(hash)
+        emails: list[str] = []
+        if record.owner and getattr(record.owner, "notify_on_final", True):
+            emails.append(record.owner.email)
+        for participant in record.participants or []:
+            if getattr(participant, "notify_on_final", True):
+                emails.append(participant.email)
+        for extra in record.emails or []:
+            emails.append(extra)
+        await notify_final_time(
+            emails, record.name, record.id, record.link
+        )
         return self._to_response(record, user)
 
     async def delete_slots_of_user(

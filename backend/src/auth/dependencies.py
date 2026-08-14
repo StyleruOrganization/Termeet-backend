@@ -137,6 +137,21 @@ get_current_auth_user_from_reset_password = get_auth_user_from_token_of_type(
 )
 
 
+async def get_optional_refresh_user(
+    refresh_token: str | None = Cookie(None, alias=REFRESH_TOKEN_COOKIE),
+    session: AsyncSession = Depends(get_async_session),
+) -> UserSchema | None:
+    if not refresh_token:
+        return None
+    try:
+        payload = await decode_jwt(token=refresh_token)
+        if payload.get(TOKEN_TYPE_FIELD) != REFRESH_TOKEN_TYPE:
+            return None
+        return await get_user_by_token_sub(payload, session)
+    except Exception:
+        return None
+
+
 async def get_current_active_user(
     user: UserSchema | None = Depends(_get_current_auth_user_from_access),
 ):

@@ -98,7 +98,7 @@ class UserMeetingItem(BaseModel):
 class Meet(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
     description: str | None = Field(None, max_length=400)
-    link: str | None = Field(None, max_length=128)
+    link: str | None = Field(None, max_length=256)
     duration: str | None = None
     data_range: list[list[str]] | None = Field(
         None,
@@ -115,7 +115,11 @@ class Meet(BaseModel):
 
 
 class MeetCreate(Meet):
-    pass
+    create_telemost: bool = Field(
+        False,
+        validation_alias=_json_names("create_telemost", "createTelemost"),
+        serialization_alias="createTelemost",
+    )
 
 
 class MeetResponse(Meet):

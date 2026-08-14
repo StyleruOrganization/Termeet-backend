@@ -63,6 +63,15 @@ class Users(Base):
         default="19 : 00",
         server_default="19 : 00",
     )
+    notify_on_vote: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    notify_on_final: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    show_onboarding: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
 
     oauth_accounts: Mapped[Optional[list["OAuthAccount"]]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

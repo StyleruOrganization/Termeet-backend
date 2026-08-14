@@ -1,13 +1,16 @@
+from datetime import datetime
 from typing import TYPE_CHECKING
+from uuid import UUID
+
+from sqlalchemy.orm import selectinload
 from sqlalchemy import func, select
 
+from backend.src.auth.models import OAuthAccount, OAuthEnum
 from backend.src.auth.repositories import Repository
-from backend.src.auth.schemas import YandexUserData
+from backend.src.auth.schemas import AuthTokens, YandexUserData
 from backend.src.users.models import Users
-from backend.src.auth.models import OAuthAccount
 
 if TYPE_CHECKING:
-    from uuid import UUID
     from backend.src.auth.schemas import UserData
     from backend.src.users.schemas import UserSchema
 
@@ -20,10 +23,16 @@ class Infrastructure(Repository):
         user_cache = self.session.info.get("user_cache", {})
         cached_user: Users = user_cache.get(user_id)
 
-        if not cached_user:
-            return await self.session.get(Users, user_id)
+        if cached_user:
+            return cached_user
 
-        return cached_user
+        query = (
+            select(Users)
+            .options(selectinload(Users.oauth_accounts))
+            .where(Users.id == user_id)
+        )
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
 
     async def register_user(self, user: UserData) -> Users:
         object: Users = Users(
@@ -52,20 +61,63 @@ class Infrastructure(Repository):
         self, user: YandexUserData
     ) -> Users | None:
         query = (
-            select(Users, OAuthAccount)
+            select(Users)
             .join(Users.oauth_accounts)
+            .options(selectinload(Users.oauth_accounts))
             .where(OAuthAccount.provider_user_id == int(user.id))
         )
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
     async def check_user_in_db_by_id(self, id: UUID) -> Users | None:
-        return await self.session.get(Users, id)
-
-    async def check_user_in_db_by_email(self, email: str) -> Users | None:
-        query = select(Users).where(func.lower(Users.email) == email.lower())
+        query = (
+            select(Users)
+            .options(selectinload(Users.oauth_accounts))
+            .where(Users.id == id)
+        )
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
+
+    async def check_user_in_db_by_email(self, email: str) -> Users | None:
+        query = (
+            select(Users)
+            .options(selectinload(Users.oauth_accounts))
+            .where(func.lower(Users.email) == email.lower())
+        )
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
+
+    async def upsert_yandex_oauth(
+        self,
+        user: Users,
+        user_data: YandexUserData,
+        tokens: AuthTokens,
+        scopes: str,
+        expires_at: datetime | None,
+    ) -> None:
+        if user.oauth_accounts is None:
+            user.oauth_accounts = []
+        found: OAuthAccount | None = None
+        for account in list(user.oauth_accounts):
+            provider = str(account.provider).upper()
+            if "YANDEX" in provider:
+                found = account
+                break
+        if not found:
+            found = OAuthAccount(
+                provider=OAuthEnum.YANDEX,
+                provider_user_id=int(user_data.id),
+            )
+            user.oauth_accounts.append(found)
+
+        found.provider_user_id = int(user_data.id)
+        found.access_token = tokens.access_token
+        if tokens.refresh_token:
+            found.refresh_token = tokens.refresh_token
+        found.scopes = tokens.scope or scopes
+        found.token_expires_at = expires_at
+        self.session.add(user)
+        await self.session.flush()
 
     async def set_verify_user(self, user: UserSchema):
         user: Users = await self.get_user_by_id(user.id)

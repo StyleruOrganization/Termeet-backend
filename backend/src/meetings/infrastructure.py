@@ -16,6 +16,29 @@ if TYPE_CHECKING:
     from sqlalchemy import Select
     from backend.src.meetings.schemas import MeetCreate
 
+CELL_MINUTES = 30
+
+
+def duration_to_minutes(duration: str | None) -> int:
+    if not duration or not str(duration).strip():
+        return 0
+    text = str(duration).strip().lower().replace(",", ".")
+    if "мин" in text:
+        number = text.replace("мин", "").strip()
+        try:
+            return int(float(number))
+        except ValueError:
+            return 0
+    if "час" in text:
+        number = (
+            text.replace("часа", "").replace("час", "").strip()
+        )
+        try:
+            return int(float(number) * 60)
+        except ValueError:
+            return 0
+    return 0
+
 
 class Infrastructure(Repository):
     def __init__(self, session: AsyncSession):
@@ -27,10 +50,22 @@ class Infrastructure(Repository):
 
         return cached_user
 
+    async def get_user_with_oauth(self, user_id) -> Optional[Users]:
+        query = (
+            select(Users)
+            .options(selectinload(Users.oauth_accounts))
+            .where(Users.id == user_id)
+        )
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
+
     async def get_meeting_with_participants(self, id: UUID) -> Meetings:
         query: Select = (
             select(Meetings)
-            .options(selectinload(Meetings.participants))
+            .options(
+                selectinload(Meetings.participants),
+                selectinload(Meetings.owner),
+            )
             .where(Meetings.id == id)
         )
         result: AsyncResult = await self.session.execute(query)
@@ -242,6 +277,12 @@ class Infrastructure(Repository):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Final time must be among slots people already voted",
+            )
+        limit = duration_to_minutes(meeting.duration)
+        if limit and len(final_keys) * CELL_MINUTES > limit:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Final time cannot be longer than meeting duration",
             )
 
         meeting.final_slot = slots

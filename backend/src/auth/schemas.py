@@ -19,6 +19,7 @@ def _require_strong_password(value: str) -> str:
 
 class Code(BaseModel):
     code: str = Field(..., min_length=1, max_length=128)
+    state: str | None = None
 
 
 class Email(BaseModel):
@@ -43,8 +44,11 @@ class Password(BaseModel):
 
 class AuthTokens(BaseModel):
     access_token: str
-    refresh_token: str
-    expires_in: int
+    refresh_token: str | None = None
+    expires_in: int = 0
+    scope: str | None = None
+
+    model_config = ConfigDict(extra="ignore")
 
 
 class YandexUserData(BaseModel):

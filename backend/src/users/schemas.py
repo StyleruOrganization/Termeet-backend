@@ -56,6 +56,11 @@ class UserSchema(BaseModel):
     locale: str = "ru"
     grid_window_start: str = "10 : 00"
     grid_window_end: str = "19 : 00"
+    notify_on_vote: bool = True
+    notify_on_final: bool = True
+    show_onboarding: bool = True
+    has_yandex: bool = False
+    has_telemost: bool = False
 
     model_config = ConfigDict(from_attributes=True, extra="ignore")
 
@@ -64,7 +69,7 @@ class UserSchema(BaseModel):
     def from_orm_without_computed_nickname(cls, data):
         if not hasattr(data, "__table__"):
             return data
-        return {
+        payload = {
             "id": data.id,
             "first_name": data.first_name,
             "last_name": data.last_name,
@@ -89,7 +94,21 @@ class UserSchema(BaseModel):
                 data, "grid_window_end", "19 : 00"
             )
             or "19 : 00",
+            "notify_on_vote": getattr(data, "notify_on_vote", True),
+            "notify_on_final": getattr(data, "notify_on_final", True),
+            "show_onboarding": getattr(data, "show_onboarding", True),
+            "has_yandex": False,
+            "has_telemost": False,
         }
+        from backend.src.integrations.yandex_telemost import (
+            has_telemost_scope,
+            yandex_account_from_user,
+        )
+
+        yandex = yandex_account_from_user(data)
+        payload["has_yandex"] = bool(yandex)
+        payload["has_telemost"] = has_telemost_scope(yandex)
+        return payload
 
 
 class UserSettingsUpdate(BaseModel):
@@ -102,6 +121,9 @@ class UserSettingsUpdate(BaseModel):
     locale: Literal["ru", "en", "de"] | None = None
     grid_window_start: str | None = Field(None, max_length=16)
     grid_window_end: str | None = Field(None, max_length=16)
+    notify_on_vote: bool | None = None
+    notify_on_final: bool | None = None
+    show_onboarding: bool | None = None
 
     model_config = ConfigDict(extra="ignore")
 

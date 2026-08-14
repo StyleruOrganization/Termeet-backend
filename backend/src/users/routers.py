@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.src.schemas import ErrorResponse
 from backend.src.dependencies import get_async_session
 from backend.src.auth.dependencies import get_required_active_user
-from backend.src.users.schemas import UserSchema, UserSettingsUpdate
+from backend.src.users.schemas import UserSchema, UserSearchItem, UserSettingsUpdate
 from backend.src.users.services import Service as UsersService
 from backend.src.meetings.schemas import UserMeetingItem
 from backend.src.meetings.services import Service as MeetingsService
@@ -53,6 +53,20 @@ async def update_me(
 ):
     service = UsersService(session)
     return await service.update_settings(user, payload)
+
+
+@router.get(
+    "/search",
+    response_model=list[UserSearchItem],
+    summary="Найти пользователей Termeet",
+)
+async def search_users(
+    q: str = Query("", min_length=0, max_length=64),
+    user: UserSchema = Depends(get_required_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = UsersService(session)
+    return await service.search_users(q, user)
 
 
 @router.get(

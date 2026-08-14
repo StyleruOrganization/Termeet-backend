@@ -28,6 +28,7 @@ class MeetPermissions(BaseModel):
     can_edit_settings: bool = Field(serialization_alias="canEditSettings")
     can_vote: bool = Field(serialization_alias="canVote")
     can_observe: bool = Field(serialization_alias="canObserve")
+    can_set_final: bool = Field(serialization_alias="canSetFinal")
     is_observer: bool = Field(serialization_alias="isObserver")
 
 
@@ -37,8 +38,15 @@ class MeetSettingsUpdate(BaseModel):
         alias="anyoneCanDeleteParticipants"
     )
     require_login_to_vote: bool = Field(alias="requireLoginToVote")
+    anyone_can_set_final: bool | None = Field(
+        None, alias="anyoneCanSetFinal"
+    )
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+class MeetFinalUpdate(BaseModel):
+    slots: list[list[str]]
 
 
 class UserMeetingItem(BaseModel):
@@ -47,8 +55,13 @@ class UserMeetingItem(BaseModel):
     description: str | None = None
     duration: str | None = None
     link: str | None = None
-    role: Literal["owner", "participant", "observer"]
+    role: Literal["owner", "participant", "observer", "invited"]
     data_range: list[list[str]] = Field(serialization_alias="dataRange")
+    has_final: bool = Field(False, serialization_alias="hasFinal")
+    participant_names: list[str] = Field(
+        default_factory=list, serialization_alias="participantNames"
+    )
+    participant_count: int = Field(0, serialization_alias="participantCount")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -59,6 +72,9 @@ class Meet(BaseModel):
     link: str | None = Field(None, max_length=128)
     duration: str | None = None
     dataRange: list[list[str]] | None = Field(alias="data_range")
+    invited_user_ids: list[UUID] | None = Field(
+        None, alias="invitedUserIds"
+    )
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -80,6 +96,12 @@ class MeetResponse(Meet):
     )
     require_login_to_vote: bool = Field(
         False, serialization_alias="requireLoginToVote"
+    )
+    anyone_can_set_final: bool = Field(
+        False, serialization_alias="anyoneCanSetFinal"
+    )
+    final_slot: list[list[str]] | None = Field(
+        None, serialization_alias="finalSlot"
     )
     organizer_name: str | None = Field(
         None, serialization_alias="organizerName"

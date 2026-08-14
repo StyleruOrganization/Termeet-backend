@@ -1,8 +1,10 @@
 from fastapi import HTTPException, status
 
+from sqlalchemy import or_, select
+
 from backend.src.users.models import Users
 from backend.src.users.repositories import Repository
-from backend.src.users.schemas import UserSettingsUpdate
+from backend.src.users.schemas import UserSearchItem, UserSettingsUpdate
 
 
 class Infrastructure(Repository):
@@ -37,4 +39,33 @@ class Infrastructure(Repository):
 
         self.session.add(record)
         await self.session.flush()
+        await self.session.refresh(record)
         return record
+
+    async def search_users(self, query: str, current_id) -> list[UserSearchItem]:
+        needle = (query or "").strip()
+        if len(needle) < 2:
+            return []
+
+        pattern = f"%{needle}%"
+        result = await self.session.execute(
+            select(Users)
+            .where(Users.is_active.is_(True))
+            .where(Users.id != current_id)
+            .where(
+                or_(
+                    Users.first_name.ilike(pattern),
+                    Users.last_name.ilike(pattern),
+                    Users.email.ilike(pattern),
+                )
+            )
+            .limit(8)
+        )
+        return [
+            UserSearchItem(
+                id=user.id,
+                first_name=user.first_name,
+                last_name=user.last_name,
+            )
+            for user in result.scalars().all()
+        ]

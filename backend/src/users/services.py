@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 
 from backend.src.config import config
 from backend.src.users.infrastructures import Infrastructure
-from backend.src.users.schemas import UserSchema, UserSettingsUpdate
+from backend.src.users.schemas import UserSchema, UserSearchItem, UserSettingsUpdate
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -70,5 +70,23 @@ class Service:
         self, user: UserSchema, payload: UserSettingsUpdate
     ) -> UserSchema:
         record = await self.repository.update_settings(user.id, payload)
-        return UserSchema.model_validate(record)
+        return UserSchema(
+            id=record.id,
+            first_name=record.first_name,
+            last_name=record.last_name,
+            nickname=record.first_name,
+            is_active=record.is_active,
+            is_verified=record.is_verified,
+            email=record.email,
+            additional_emails=record.additional_emails,
+            timezone=record.timezone,
+            theme=record.theme,
+            suggest_prefill=record.suggest_prefill,
+            availability_template=record.availability_template or [],
+        )
+
+    async def search_users(
+        self, query: str, current: UserSchema
+    ) -> list[UserSearchItem]:
+        return await self.repository.search_users(query, current.id)
 

@@ -6,6 +6,7 @@ from pydantic import (
     ConfigDict,
     Field,
     field_validator,
+    model_validator,
 )
 
 
@@ -55,6 +56,29 @@ class UserSchema(BaseModel):
 
     model_config = ConfigDict(from_attributes=True, extra="ignore")
 
+    @model_validator(mode="before")
+    @classmethod
+    def from_orm_without_computed_nickname(cls, data):
+        if not hasattr(data, "__table__"):
+            return data
+        return {
+            "id": data.id,
+            "first_name": data.first_name,
+            "last_name": data.last_name,
+            "nickname": data.first_name,
+            "is_active": data.is_active,
+            "is_verified": data.is_verified,
+            "email": data.email,
+            "additional_emails": data.additional_emails,
+            "timezone": getattr(data, "timezone", "UTC +3:00 (Москва)"),
+            "theme": getattr(data, "theme", "light"),
+            "suggest_prefill": getattr(data, "suggest_prefill", True),
+            "availability_template": getattr(
+                data, "availability_template", []
+            )
+            or [],
+        }
+
 
 class UserSettingsUpdate(BaseModel):
     timezone: str | None = Field(None, max_length=64)
@@ -70,3 +94,10 @@ class UserSettingsUpdate(BaseModel):
         if value is not None and len(value) > 200:
             raise ValueError("Слишком много интервалов в шаблоне")
         return value
+
+
+class UserSearchItem(BaseModel):
+    id: UUID
+    first_name: str
+    last_name: str
+

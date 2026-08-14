@@ -54,6 +54,13 @@ class Meetings(Base):
     require_login_to_vote: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
     )
+    anyone_can_set_final: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    final_slot: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+    invited_user_ids: Mapped[list] = mapped_column(
+        JSONB, default=lambda: [], server_default="[]", nullable=False
+    )
     observers: Mapped[list] = mapped_column(
         JSONB, default=lambda: [], server_default="[]", nullable=False
     )

@@ -7,7 +7,13 @@ from backend.src.schemas import ErrorResponse
 from backend.src.dependencies import get_async_session
 from backend.src.auth.dependencies import get_current_active_user
 from backend.src.users.schemas import UserSchema
-from .schemas import MeetCreate, MeetResponse, MeetSettingsUpdate, SlotsUser
+from .schemas import (
+    MeetCreate,
+    MeetFinalUpdate,
+    MeetResponse,
+    MeetSettingsUpdate,
+    SlotsUser,
+)
 from .services import Service
 
 
@@ -137,6 +143,21 @@ async def observe_meeting(
 ) -> MeetResponse:
     service = Service(session)
     return await service.observe_meeting(hash, user)
+
+
+@router.patch(
+    "/{hash}/final",
+    response_model=MeetResponse,
+    summary="Назначить итоговое время встречи",
+)
+async def set_final_time(
+    hash: UUID,
+    payload: MeetFinalUpdate,
+    session: AsyncSession = Depends(get_async_session),
+    user: UserSchema | None = Depends(get_current_active_user),
+) -> MeetResponse:
+    service = Service(session)
+    return await service.set_final(hash, payload, user)
 
 
 @router.patch(

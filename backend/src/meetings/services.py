@@ -8,7 +8,9 @@ from backend.src.meetings.permissions import (
     can_delete_participants,
     can_edit_meet,
     can_edit_settings,
+    can_set_final,
     can_vote,
+    has_final_slot,
     has_user_slots,
     is_owner,
     observer_user_ids,
@@ -18,6 +20,7 @@ from backend.src.meetings.schemas import (
     MeetPermissions,
     MeetResponse,
     MeetCreate,
+    MeetFinalUpdate,
     MeetSettingsUpdate,
     ObserverUser,
     SlotsUser,
@@ -45,6 +48,7 @@ class Service:
             and not is_owner(record, user)
             and not voted
             and not is_observer
+            and not has_final_slot(record)
         )
         return MeetPermissions(
             can_edit_meet=can_edit_meet(record, user),
@@ -52,6 +56,7 @@ class Service:
             can_edit_settings=can_edit_settings(record, user),
             can_vote=can_vote(record, user),
             can_observe=can_observe,
+            can_set_final=can_set_final(record, user),
             is_observer=is_observer,
         )
 
@@ -160,6 +165,12 @@ class Service:
                 detail="You must be authenticated to vote",
             )
 
+        if has_final_slot(record):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Final time is already set",
+            )
+
         if not slots.slots:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -193,8 +204,35 @@ class Service:
                 detail="You must be authenticated to edit slots",
             )
 
+        record: Meetings = await self.repository.get_meeting(hash)
+        if has_final_slot(record):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Final time is already set",
+            )
+
         await self.repository.edit_slots(hash, slots.name, slots.slots, user)
         return {"detail": "Slots edited successfully"}
+
+    async def set_final(
+        self,
+        hash: UUID,
+        payload: MeetFinalUpdate,
+        user: UserSchema | None,
+    ) -> MeetResponse:
+        record: Meetings = await self.repository.get_meeting(hash)
+        if not can_set_final(record, user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to set final time",
+            )
+        if not payload.slots:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Select final time first",
+            )
+        await self.repository.set_final_slot(record, payload.slots)
+        return self._to_response(record, user)
 
     async def delete_slots_of_user(
         self, hash: UUID, username: str, user: UserSchema | None

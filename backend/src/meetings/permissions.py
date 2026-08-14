@@ -39,10 +39,28 @@ def can_edit_settings(record, user: UserSchema | None) -> bool:
     return is_owner(record, user)
 
 
+def has_final_slot(record) -> bool:
+    return bool(getattr(record, "final_slot", None))
+
+
+def anyone_can_set_final(record) -> bool:
+    return bool(getattr(record, "anyone_can_set_final", False))
+
+
 def can_vote(record, user: UserSchema | None) -> bool:
+    if has_final_slot(record):
+        return False
     if is_open_meeting(record) or not require_login_to_vote(record):
         return True
     return user is not None
+
+
+def can_set_final(record, user: UserSchema | None) -> bool:
+    if user is None:
+        return False
+    if is_owner(record, user) or is_open_meeting(record):
+        return True
+    return anyone_can_set_final(record)
 
 
 def observer_user_ids(record) -> set[str]:

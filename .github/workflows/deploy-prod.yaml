@@ -5,6 +5,11 @@ on:
   push:
     branches: ["main"]
   workflow_dispatch:
+    inputs:
+      update_infra:
+        description: "Обновить postgres, rabbit, grafana и остальные (не только API)"
+        type: boolean
+        default: false
 
     
 jobs:
@@ -66,11 +71,14 @@ jobs:
             echo "🚀 Деплой backend-а"
             cd backend-prod
 
-            # Логинимся в registry
             echo ${{ secrets.Y_TOKEN }} | docker login \
               --username oauth \
               --password-stdin cr.yandex
 
-            # Автоматически проверяет контейнеры на обновления
-            # В случае чего соответственно их перезапускает
-            docker compose -f docker-compose-prod.yml up -d --pull always
+            if [ "${{ github.event.inputs.update_infra }}" = "true" ]; then
+              echo "Обновляю все сервисы compose"
+              docker compose -f docker-compose-prod.yml up -d --pull always
+            else
+              echo "Обновляю только backend-prod"
+              docker compose -f docker-compose-prod.yml up -d --pull always --no-deps backend
+            fi

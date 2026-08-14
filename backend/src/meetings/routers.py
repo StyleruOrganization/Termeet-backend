@@ -1,12 +1,16 @@
 from uuid import UUID
+import asyncio
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, WebSocket
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.websockets import WebSocketDisconnect
 
 from backend.src.schemas import ErrorResponse
 from backend.src.dependencies import get_async_session
+from backend.src.database import async_session_maker
 from backend.src.auth.dependencies import get_current_active_user
 from backend.src.users.schemas import UserSchema
+from .live import meet_live_hub, optional_user_from_token
 from .schemas import (
     MeetCreate,
     MeetFinalUpdate,
@@ -49,6 +53,33 @@ async def get_meeting(
 ) -> MeetResponse:
     service = Service(session)
     return await service.get_meeting(hash, user)
+
+
+@router.websocket("/{hash}/ws")
+async def meeting_live(
+    websocket: WebSocket,
+    hash: UUID,
+    token: str | None = None,
+):
+    async with async_session_maker() as session:
+        service = Service(session)
+        try:
+            await service.repository.get_meeting(hash)
+        except HTTPException:
+            await websocket.close(code=1008)
+            return
+        user = await optional_user_from_token(token, session)
+
+    await meet_live_hub.connect(str(hash), websocket, user)
+    keepalive = asyncio.create_task(meet_live_hub.keepalive(websocket))
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        keepalive.cancel()
+        meet_live_hub.disconnect(str(hash), websocket)
 
 
 @router.post(

@@ -1,9 +1,11 @@
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from fastapi import HTTPException, status
 
 from backend.src.users.schemas import UserSchema
 from backend.src.meetings.infrastructure import Infrastructure
+from backend.src.meetings.live import meet_live_hub
 from backend.src.meetings.permissions import (
     can_delete_participants,
     can_edit_meet,
@@ -28,7 +30,6 @@ from backend.src.meetings.schemas import (
 )
 
 if TYPE_CHECKING:
-    from uuid import UUID
     from sqlalchemy.ext.asyncio import AsyncSession
     from backend.src.meetings.models import Meetings
 
@@ -107,6 +108,13 @@ class Service:
             meeting.observers = []
         return meeting
 
+    async def notify_live(self, meeting_id: UUID) -> None:
+        try:
+            record = await self.repository.get_meeting(meeting_id)
+            await meet_live_hub.publish(record, self._to_response)
+        except Exception:
+            return
+
     async def get_meeting(
         self, hash: UUID, user: UserSchema | None
     ) -> MeetResponse:
@@ -132,6 +140,7 @@ class Service:
             )
 
         await self.repository.edit_meeting(record, meeting)
+        await self.notify_live(hash)
         return {"detail": "Meeting edited successfully"}
 
     async def update_settings(
@@ -147,6 +156,7 @@ class Service:
                 detail="Only the organizer can change privacy settings",
             )
         await self.repository.update_settings(record, settings)
+        await self.notify_live(hash)
         return self._to_response(record, user)
 
     async def observe_meeting(
@@ -171,6 +181,7 @@ class Service:
                 detail="You already voted in this meeting",
             )
         await self.repository.add_observer(record, user)
+        await self.notify_live(hash)
         return self._to_response(record, user)
 
     async def list_user_meetings(
@@ -219,6 +230,7 @@ class Service:
             )
 
         await self.repository.add_slots(slots.name, slots.slots, record, user)
+        await self.notify_live(hash)
         return {"detail": "Slots added successfully"}
 
     async def edit_slots(
@@ -238,6 +250,7 @@ class Service:
             )
 
         await self.repository.edit_slots(hash, slots.name, slots.slots, user)
+        await self.notify_live(hash)
         return {"detail": "Slots edited successfully"}
 
     async def set_final(
@@ -258,6 +271,7 @@ class Service:
                 detail="Select final time first",
             )
         await self.repository.set_final_slot(record, payload.slots)
+        await self.notify_live(hash)
         return self._to_response(record, user)
 
     async def delete_slots_of_user(
@@ -291,4 +305,5 @@ class Service:
                     )
 
         await self.repository.delete_slots_of_user(record, username, user)
+        await self.notify_live(hash)
         return {"detail": "Slots deleted successfully"}

@@ -7,7 +7,7 @@ from backend.src.schemas import ErrorResponse
 from backend.src.dependencies import get_async_session
 from backend.src.auth.dependencies import get_current_active_user
 from backend.src.users.schemas import UserSchema
-from .schemas import MeetCreate, MeetResponse, SlotsUser
+from .schemas import MeetCreate, MeetResponse, MeetSettingsUpdate, SlotsUser
 from .services import Service
 
 
@@ -108,6 +108,35 @@ async def edit_meeting(
 ):
     service = Service(session)
     return await service.edit_meeting(hash, meeting, user)
+
+
+@router.patch(
+    "/{hash}/settings",
+    response_model=MeetResponse,
+    summary="Настройки приватности встречи",
+)
+async def update_meeting_settings(
+    hash: UUID,
+    settings: MeetSettingsUpdate,
+    session: AsyncSession = Depends(get_async_session),
+    user: UserSchema | None = Depends(get_current_active_user),
+) -> MeetResponse:
+    service = Service(session)
+    return await service.update_settings(hash, settings, user)
+
+
+@router.post(
+    "/{hash}/observe",
+    response_model=MeetResponse,
+    summary="Стать наблюдателем встречи",
+)
+async def observe_meeting(
+    hash: UUID,
+    session: AsyncSession = Depends(get_async_session),
+    user: UserSchema | None = Depends(get_current_active_user),
+) -> MeetResponse:
+    service = Service(session)
+    return await service.observe_meeting(hash, user)
 
 
 @router.patch(

@@ -1,8 +1,13 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.src.schemas import ErrorResponse
-from backend.src.auth.dependencies import get_current_active_user
-from backend.src.users.schemas import UserSchema
+from backend.src.dependencies import get_async_session
+from backend.src.auth.dependencies import get_required_active_user
+from backend.src.users.schemas import UserSchema, UserSettingsUpdate
+from backend.src.users.services import Service as UsersService
+from backend.src.meetings.schemas import UserMeetingItem
+from backend.src.meetings.services import Service as MeetingsService
 
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -10,6 +15,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.get(
     "/me",
+    response_model=UserSchema,
     summary="Информация о текущем пользователе",
     description="Получает юзера из access-токена, проверяет его в БД и \
         возвращает его данные",
@@ -29,5 +35,34 @@ router = APIRouter(prefix="/users", tags=["Users"])
         },
     }
 )
-async def auth_user(user: UserSchema = Depends(get_current_active_user)):
+async def auth_user(
+    user: UserSchema = Depends(get_required_active_user),
+):
     return user
+
+
+@router.patch(
+    "/me",
+    response_model=UserSchema,
+    summary="Обновить настройки профиля",
+)
+async def update_me(
+    payload: UserSettingsUpdate,
+    user: UserSchema = Depends(get_required_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = UsersService(session)
+    return await service.update_settings(user, payload)
+
+
+@router.get(
+    "/me/meetings",
+    response_model=list[UserMeetingItem],
+    summary="Встречи текущего пользователя",
+)
+async def my_meetings(
+    user: UserSchema = Depends(get_required_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = MeetingsService(session)
+    return await service.list_user_meetings(user)

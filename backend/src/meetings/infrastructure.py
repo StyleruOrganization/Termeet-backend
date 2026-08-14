@@ -65,6 +65,9 @@ class Infrastructure(Repository):
             # Достаем пользователя из словаря сессии
             cached_user = await self.get_cached_user(user)
             object.owner = cached_user
+            object.anyone_can_edit = False
+            object.anyone_can_delete_participants = False
+            object.require_login_to_vote = False
 
         self.session.add(object)
         await self.session.flush()
@@ -89,6 +92,12 @@ class Infrastructure(Repository):
 
         if user:
             meeting.participants.append(user)
+            observers = list(meeting.observers or [])
+            meeting.observers = [
+                item
+                for item in observers
+                if str(item.get("user_id")) != str(user.id)
+            ]
 
         current_slots = meeting.slots.copy() if meeting.slots else []
 
@@ -108,6 +117,12 @@ class Infrastructure(Repository):
     async def edit_slots(
         self, id: UUID, name: str, slots: list, user: UserSchema | None
     ):
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="You must be authenticated to edit slots",
+            )
+
         meeting: Meetings = await self.get_meeting_with_participants(id)
 
         # Достаем пользователя из словаря сессии
@@ -131,18 +146,110 @@ class Infrastructure(Repository):
                 detail="Slots for this user not found in this meeting",
             )
 
-        current_slots.append(
-            {
-                "name": name,
-                "slots": slots,
-                "user_id": str(user.id) if user else None,
-            }
-        )
+        if slots:
+            current_slots.append(
+                {
+                    "name": name,
+                    "slots": slots,
+                    "user_id": str(user.id) if user else None,
+                }
+            )
+        elif cached_user and cached_user in (meeting.participants or []):
+            meeting.participants.remove(cached_user)
 
         meeting.slots = current_slots
 
         self.session.add(meeting)
         await self.session.flush()
+
+    async def update_settings(self, meeting: Meetings, settings) -> Meetings:
+        meeting.anyone_can_edit = settings.anyone_can_edit
+        meeting.anyone_can_delete_participants = (
+            settings.anyone_can_delete_participants
+        )
+        meeting.require_login_to_vote = settings.require_login_to_vote
+        self.session.add(meeting)
+        await self.session.flush()
+        return meeting
+
+    async def add_observer(self, meeting: Meetings, user: UserSchema):
+        observers = list(meeting.observers or [])
+        user_id = str(user.id)
+        if any(str(item.get("user_id")) == user_id for item in observers):
+            return
+        observers.append(
+            {
+                "user_id": user_id,
+                "name": f"{user.first_name} {user.last_name}".strip(),
+            }
+        )
+        meeting.observers = observers
+        self.session.add(meeting)
+        await self.session.flush()
+
+    async def list_user_meetings(self, user: UserSchema):
+        from sqlalchemy import select
+
+        from backend.src.meetings.models import MeetingsUsers
+        from backend.src.meetings.schemas import UserMeetingItem
+
+        uid = user.id
+        uid_str = str(uid)
+        items: dict[str, UserMeetingItem] = {}
+
+        owned = await self.session.execute(
+            select(Meetings).where(Meetings.owner_id == uid)
+        )
+        for meeting in owned.scalars().all():
+            items[str(meeting.id)] = UserMeetingItem(
+                hash=meeting.id,
+                name=meeting.name,
+                description=meeting.description,
+                duration=meeting.duration,
+                link=meeting.link,
+                role="owner",
+                data_range=meeting.data_range or [],
+            )
+
+        participated = await self.session.execute(
+            select(Meetings)
+            .join(
+                MeetingsUsers, MeetingsUsers.meeting_id == Meetings.id
+            )
+            .where(MeetingsUsers.user_id == uid)
+        )
+        for meeting in participated.scalars().all():
+            key = str(meeting.id)
+            if key not in items:
+                items[key] = UserMeetingItem(
+                    hash=meeting.id,
+                    name=meeting.name,
+                    description=meeting.description,
+                    duration=meeting.duration,
+                    link=meeting.link,
+                    role="participant",
+                    data_range=meeting.data_range or [],
+                )
+
+        observed = await self.session.execute(
+            select(Meetings).where(
+                Meetings.observers.contains([{"user_id": uid_str}])
+            )
+        )
+        for meeting in observed.scalars().all():
+            key = str(meeting.id)
+            if key not in items:
+                items[key] = UserMeetingItem(
+                    hash=meeting.id,
+                    name=meeting.name,
+                    description=meeting.description,
+                    duration=meeting.duration,
+                    link=meeting.link,
+                    role="observer",
+                    data_range=meeting.data_range or [],
+                )
+
+        return list(items.values())
 
     async def delete_slots_of_user(
         self, meeting: Meetings, username: str, user: UserSchema | None

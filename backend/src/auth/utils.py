@@ -1,12 +1,12 @@
 import asyncio
 import logging
 from datetime import timedelta, datetime, UTC
+from email.message import EmailMessage
+from email.utils import formataddr, make_msgid
 
 import jwt
 import bcrypt
 import aiosmtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 from backend.src.config import config
 
@@ -101,38 +101,33 @@ async def validate_password(
 async def send_email(
     recipient: str, subject: str, plain_content: str, html_content: str = ""
 ):
-    message = MIMEMultipart("alternative")
-    message["From"] = config.email.EMAIL_USERNAME or "noreply@termeet.tech"
+    sender = config.email.EMAIL_USERNAME or "noreply@termeet.tech"
+    message = EmailMessage()
+    message["From"] = formataddr(("Termeet", sender))
     message["To"] = recipient
     message["Subject"] = subject
-
-    plain_text_message = MIMEText(
-        plain_content,
-        "plain",
-        "utf-8",
-    )
-    message.attach(plain_text_message)
-
+    message["Message-ID"] = make_msgid(domain="termeet.tech")
+    message.set_content(plain_content)
     if html_content:
-        html_message = MIMEText(
-            html_content,
-            "html",
-            "utf-8",
-        )
-        message.attach(html_message)
+        message.add_alternative(html_content, subtype="html")
 
     send_email_args = {
         "hostname": config.email.EMAIL_HOST,
         "port": config.email.EMAIL_PORT,
+        "timeout": 30,
+        "sender": sender,
     }
 
     if not config.email.USE_MAILDEV:
-        send_email_args["username"] = config.email.EMAIL_USERNAME
-        if config.email.EMAIL_PASSWORD:
-            send_email_args["password"] = (
-                config.email.EMAIL_PASSWORD.get_secret_value()
+        if not config.email.EMAIL_USERNAME or not config.email.EMAIL_PASSWORD:
+            logger.error(
+                "Email credentials are missing, skip send to %s", recipient
             )
-        # 465 — сразу TLS, 587 — STARTTLS
+            return
+        send_email_args["username"] = config.email.EMAIL_USERNAME
+        send_email_args["password"] = (
+            config.email.EMAIL_PASSWORD.get_secret_value()
+        )
         if config.email.EMAIL_PORT == 465:
             send_email_args["use_tls"] = True
         else:
@@ -140,42 +135,6 @@ async def send_email(
 
     try:
         await aiosmtplib.send(message, **send_email_args)
+        logger.info("Email sent to %s (%s)", recipient, subject)
     except Exception:
-        # Фоновая отправка: исключение здесь откатывает транзакцию
-        # регистрации, и следующий /login получает 401.
         logger.exception("Failed to send email to %s", recipient)
-
-    # try:
-    #     # Для Яндекса обычно используется порт 465 и use_tls=True
-    #     await aiosmtplib.send(
-    #         message,
-    #         hostname="smtp.yandex.ru",
-    #         port=465,
-    #         username="your-login@yandex.ru",
-    #         password="your-app-password", # Используйте ПАРОЛЬ ПРИЛОЖЕНИЯ, а не личный
-    #         use_tls=True,
-    #     )
-    #     print("Письмо успешно отправлено на сервер!")
-
-    # except aiosmtplib.SMTPRecipientRefused:
-    #     # Самая важная для вас ошибка: сервер получателя сразу сказал, что адреса не существует
-    #     print(f"Ошибка: Адрес {recipient_email} отклонен сервером (не существует).")
-
-    # except aiosmtplib.SMTPAuthenticationError:
-    #     # Ошибка логина/пароля или не включен SMTP в настройках Яндекса
-    #     print("Ошибка: Не удалось войти. Проверьте логин и пароль приложения.")
-
-    # except aiosmtplib.SMTPDataError:
-    #     # Яндекс часто кидает эту ошибку, если посчитал ваше письмо спамом
-    #     print("Ошибка: Письмо отклонено сервером Яндекса (возможно, спам).")
-
-    # except aiosmtplib.SMTPConnectError:
-    #     print("Ошибка: Не удалось подключиться к серверу Яндекса.")
-
-    # except aiosmtplib.SMTPException as e:
-    #     # Базовое исключение для всех остальных ошибок SMTP
-    #     print(f"Произошла общая ошибка SMTP: {e}")
-
-    # except Exception as e:
-    #     # Ошибки сети, таймауты и прочее
-    #     print(f"Системная ошибка: {e}")

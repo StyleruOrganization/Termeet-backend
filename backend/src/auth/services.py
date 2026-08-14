@@ -305,12 +305,9 @@ class Service:
             last_name=user.last_name,
         )
 
-        try:
-            return await send_email(
-                recipient=recipient,
-                subject=subject,
-                plain_content=plain_content,
-                html_content=html_content,
-            )
-        except Exception:
-            return None
+        await send_email(
+            recipient=recipient,
+            subject=subject,
+            plain_content=plain_content,
+            html_content=html_content,
+        )

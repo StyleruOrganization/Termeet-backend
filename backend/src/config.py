@@ -63,7 +63,7 @@ class EmailConfig(ConfigBase):
     EMAIL_USERNAME: str | None
     EMAIL_PASSWORD: SecretStr | None
     VERIFICATION_LINK: str
-    VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 15
+    VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 1440
     USE_MAILDEV: bool
 
 

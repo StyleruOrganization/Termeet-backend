@@ -1,3 +1,4 @@
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -7,6 +8,49 @@ class SlotsUser(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     user_id: UUID | None = Field(None, alias="userId")
     slots: list[list[str]]
+    is_auth: bool = Field(False, alias="isAuth")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ObserverUser(BaseModel):
+    name: str
+    user_id: str | None = Field(None, alias="userId")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class MeetPermissions(BaseModel):
+    can_edit_meet: bool = Field(serialization_alias="canEditMeet")
+    can_delete_participants: bool = Field(
+        serialization_alias="canDeleteParticipants"
+    )
+    can_edit_settings: bool = Field(serialization_alias="canEditSettings")
+    can_vote: bool = Field(serialization_alias="canVote")
+    can_observe: bool = Field(serialization_alias="canObserve")
+    is_observer: bool = Field(serialization_alias="isObserver")
+
+
+class MeetSettingsUpdate(BaseModel):
+    anyone_can_edit: bool = Field(alias="anyoneCanEdit")
+    anyone_can_delete_participants: bool = Field(
+        alias="anyoneCanDeleteParticipants"
+    )
+    require_login_to_vote: bool = Field(alias="requireLoginToVote")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class UserMeetingItem(BaseModel):
+    hash: UUID
+    name: str
+    description: str | None = None
+    duration: str | None = None
+    link: str | None = None
+    role: Literal["owner", "participant", "observer"]
+    data_range: list[list[str]] = Field(serialization_alias="dataRange")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Meet(BaseModel):
@@ -30,13 +74,28 @@ class MeetResponse(Meet):
     is_creator_auth: bool | None = Field(
         None, serialization_alias="isCreatorAuth"
     )
+    anyone_can_edit: bool = Field(True, serialization_alias="anyoneCanEdit")
+    anyone_can_delete_participants: bool = Field(
+        True, serialization_alias="anyoneCanDeleteParticipants"
+    )
+    require_login_to_vote: bool = Field(
+        False, serialization_alias="requireLoginToVote"
+    )
+    organizer_name: str | None = Field(
+        None, serialization_alias="organizerName"
+    )
+    observers: list[ObserverUser] = []
+    permissions: MeetPermissions | None = None
 
     @field_validator("slots", mode="before")
     @classmethod
     def validate_slots(cls, slots_db):
         return [
             SlotsUser(
-                name=slot["name"], userId=slot["user_id"], slots=slot["slots"]
+                name=slot["name"],
+                userId=slot.get("user_id"),
+                slots=slot["slots"],
+                is_auth=slot.get("user_id") is not None,
             )
-            for slot in slots_db
+            for slot in slots_db or []
         ]

@@ -151,6 +151,17 @@ async def get_current_active_user(
     return user
 
 
+async def get_required_active_user(
+    user: UserSchema | None = Depends(get_current_active_user),
+):
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+    return user
+
+
 async def validate_login_user(
     user_data: LoginUserData,
     session: AsyncSession,

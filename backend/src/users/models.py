@@ -2,7 +2,8 @@ from uuid import uuid4, UUID
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Computed, LargeBinary, String, ARRAY, ForeignKey
+from sqlalchemy import Boolean, Computed, LargeBinary, String, ARRAY, ForeignKey
+from sqlalchemy.dialects.postgresql.json import JSONB
 
 from backend.src.models import Base
 
@@ -30,6 +31,22 @@ class Users(Base):
 
     password_hash: Mapped[Optional[bytes]] = mapped_column(
         LargeBinary(), nullable=True
+    )
+
+    timezone: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="UTC +3:00 (Москва)",
+        server_default="UTC +3:00 (Москва)",
+    )
+    theme: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="light", server_default="light"
+    )
+    suggest_prefill: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    availability_template: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=lambda: [], server_default="[]"
     )
 
     oauth_accounts: Mapped[Optional[list["OAuthAccount"]]] = relationship(

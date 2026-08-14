@@ -2,7 +2,7 @@ from uuid import uuid4, UUID
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, ARRAY, ForeignKey
+from sqlalchemy import Boolean, String, ARRAY, ForeignKey
 from sqlalchemy.dialects.postgresql.json import JSONB
 
 from backend.src.models import Base
@@ -44,6 +44,19 @@ class Meetings(Base):
     )
 
     emails: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String))
+
+    anyone_can_edit: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
+    anyone_can_delete_participants: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
+    require_login_to_vote: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    observers: Mapped[list] = mapped_column(
+        JSONB, default=lambda: [], server_default="[]", nullable=False
+    )
 
     # Поля, обязательные для залогинов
     owner_id: Mapped[Optional[int]] = mapped_column(

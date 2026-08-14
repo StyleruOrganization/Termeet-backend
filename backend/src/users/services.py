@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 
 from backend.src.config import config
 from backend.src.users.infrastructures import Infrastructure
+from backend.src.users.schemas import UserSchema, UserSettingsUpdate
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,3 +65,10 @@ class Service:
         join_url = response["join_url"]
 
         return join_url
+
+    async def update_settings(
+        self, user: UserSchema, payload: UserSettingsUpdate
+    ) -> UserSchema:
+        record = await self.repository.update_settings(user.id, payload)
+        return UserSchema.model_validate(record)
+

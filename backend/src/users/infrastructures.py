@@ -1,7 +1,11 @@
 from fastapi import HTTPException, status
 
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select, update
 
+from backend.src.auth.models import OAuthAccount
+from backend.src.feedback.models import Feedback
+from backend.src.meetings.models import Meetings, MeetingsUsers
+from backend.src.teams.models import Teams
 from backend.src.users.models import Users
 from backend.src.users.repositories import Repository
 from backend.src.users.schemas import UserSearchItem, UserSettingsUpdate
@@ -22,12 +26,22 @@ class Infrastructure(Repository):
             )
 
         data = payload.model_dump(exclude_unset=True)
+        if "first_name" in data and data["first_name"] is not None:
+            record.first_name = data["first_name"]
+        if "last_name" in data and data["last_name"] is not None:
+            record.last_name = data["last_name"]
         if "timezone" in data and data["timezone"] is not None:
             record.timezone = data["timezone"]
         if "theme" in data and data["theme"] is not None:
             record.theme = data["theme"]
         if "suggest_prefill" in data and data["suggest_prefill"] is not None:
             record.suggest_prefill = data["suggest_prefill"]
+        if "locale" in data and data["locale"] is not None:
+            record.locale = data["locale"]
+        if "grid_window_start" in data and data["grid_window_start"]:
+            record.grid_window_start = data["grid_window_start"]
+        if "grid_window_end" in data and data["grid_window_end"]:
+            record.grid_window_end = data["grid_window_end"]
         if "availability_template" in data:
             template = data["availability_template"] or []
             record.availability_template = [
@@ -69,3 +83,56 @@ class Infrastructure(Repository):
             )
             for user in result.scalars().all()
         ]
+
+    async def delete_account(self, user_id) -> None:
+        record: Users | None = await self.session.get(Users, user_id)
+        if not record:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        owned = (
+            await self.session.execute(
+                select(Meetings).where(Meetings.owner_id == user_id)
+            )
+        ).scalars().all()
+        owned_ids = [meeting.id for meeting in owned]
+        if owned_ids:
+            await self.session.execute(
+                delete(MeetingsUsers).where(
+                    MeetingsUsers.meeting_id.in_(owned_ids)
+                )
+            )
+            for meeting in owned:
+                await self.session.delete(meeting)
+
+        await self.session.execute(
+            delete(MeetingsUsers).where(MeetingsUsers.user_id == user_id)
+        )
+        await self.session.execute(
+            delete(OAuthAccount).where(OAuthAccount.user_id == user_id)
+        )
+        await self.session.execute(
+            update(Feedback)
+            .where(Feedback.user_id == user_id)
+            .values(user_id=None)
+        )
+
+        teams = (
+            await self.session.execute(
+                select(Teams).where(Teams.user_id == user_id)
+            )
+        ).scalars().all()
+        team_ids = [team.id for team in teams]
+        if team_ids:
+            await self.session.execute(
+                update(Meetings)
+                .where(Meetings.team_id.in_(team_ids))
+                .values(team_id=None)
+            )
+            for team in teams:
+                await self.session.delete(team)
+
+        await self.session.delete(record)
+        await self.session.flush()

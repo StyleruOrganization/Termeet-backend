@@ -83,10 +83,20 @@ class Service:
             theme=record.theme,
             suggest_prefill=record.suggest_prefill,
             availability_template=record.availability_template or [],
+            locale=getattr(record, "locale", "ru") or "ru",
+            grid_window_start=getattr(
+                record, "grid_window_start", "10 : 00"
+            )
+            or "10 : 00",
+            grid_window_end=getattr(record, "grid_window_end", "19 : 00")
+            or "19 : 00",
         )
 
     async def search_users(
         self, query: str, current: UserSchema
     ) -> list[UserSearchItem]:
         return await self.repository.search_users(query, current.id)
+
+    async def delete_account(self, user: UserSchema) -> None:
+        await self.repository.delete_account(user.id)
 

@@ -48,6 +48,21 @@ class Users(Base):
     availability_template: Mapped[list] = mapped_column(
         JSONB, nullable=False, default=lambda: [], server_default="[]"
     )
+    locale: Mapped[str] = mapped_column(
+        String(8), nullable=False, default="ru", server_default="ru"
+    )
+    grid_window_start: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="10 : 00",
+        server_default="10 : 00",
+    )
+    grid_window_end: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="19 : 00",
+        server_default="19 : 00",
+    )
 
     oauth_accounts: Mapped[Optional[list["OAuthAccount"]]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

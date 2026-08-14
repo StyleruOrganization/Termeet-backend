@@ -71,12 +71,20 @@ class Meet(BaseModel):
     description: str | None = Field(None, max_length=400)
     link: str | None = Field(None, max_length=128)
     duration: str | None = None
-    dataRange: list[list[str]] | None = Field(alias="data_range")
+    dataRange: list[list[str]] | None = Field(
+        None,
+        alias="data_range",
+        serialization_alias="dataRange",
+    )
     invited_user_ids: list[UUID] | None = Field(
         None, alias="invitedUserIds"
     )
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        serialize_by_alias=True,
+    )
 
 
 class MeetCreate(Meet):

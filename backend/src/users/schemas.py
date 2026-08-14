@@ -53,6 +53,9 @@ class UserSchema(BaseModel):
     availability_template: list[AvailabilityInterval] = Field(
         default_factory=list
     )
+    locale: str = "ru"
+    grid_window_start: str = "10 : 00"
+    grid_window_end: str = "19 : 00"
 
     model_config = ConfigDict(from_attributes=True, extra="ignore")
 
@@ -77,16 +80,37 @@ class UserSchema(BaseModel):
                 data, "availability_template", []
             )
             or [],
+            "locale": getattr(data, "locale", "ru") or "ru",
+            "grid_window_start": getattr(
+                data, "grid_window_start", "10 : 00"
+            )
+            or "10 : 00",
+            "grid_window_end": getattr(
+                data, "grid_window_end", "19 : 00"
+            )
+            or "19 : 00",
         }
 
 
 class UserSettingsUpdate(BaseModel):
+    first_name: str | None = Field(None, min_length=1, max_length=50)
+    last_name: str | None = Field(None, min_length=1, max_length=50)
     timezone: str | None = Field(None, max_length=64)
     theme: Literal["light", "dark"] | None = None
     suggest_prefill: bool | None = None
     availability_template: list[AvailabilityInterval] | None = None
+    locale: Literal["ru", "en", "de"] | None = None
+    grid_window_start: str | None = Field(None, max_length=16)
+    grid_window_end: str | None = Field(None, max_length=16)
 
     model_config = ConfigDict(extra="ignore")
+
+    @field_validator("first_name", "last_name", mode="before")
+    @classmethod
+    def strip_name(cls, value):
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
     @field_validator("availability_template")
     @classmethod

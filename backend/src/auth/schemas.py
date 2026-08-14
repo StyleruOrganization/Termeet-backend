@@ -1,6 +1,20 @@
+import re
+
 from pydantic import BaseModel, ConfigDict, Field, EmailStr, field_validator
 
 from backend.src.auth.utils import hash_password
+
+_STRONG_PASSWORD = re.compile(
+    r"^(?=.*[a-zа-яё])(?=.*[A-ZА-ЯЁ])(?=.*\d).{8,128}$"
+)
+
+
+def _require_strong_password(value: str) -> str:
+    if not _STRONG_PASSWORD.fullmatch(value or ""):
+        raise ValueError(
+            "Password must be 8+ characters with upper, lower and a digit"
+        )
+    return value
 
 
 class Code(BaseModel):
@@ -19,7 +33,12 @@ class Email(BaseModel):
 
 
 class Password(BaseModel):
-    password: str = Field(..., min_length=6, max_length=128)
+    password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def strong_password(cls, value: str) -> str:
+        return _require_strong_password(value)
 
 
 class AuthTokens(BaseModel):
@@ -46,8 +65,13 @@ class RegisterUserData(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=128)
     last_name: str = Field(..., min_length=1, max_length=128)
     email: EmailStr = Field(..., max_length=128)
-    password: str = Field(..., min_length=6, max_length=128)
+    password: str = Field(..., min_length=8, max_length=128)
     do_verify_email: bool = True
+
+    @field_validator("password")
+    @classmethod
+    def strong_password(cls, value: str) -> str:
+        return _require_strong_password(value)
 
     @field_validator("email", "first_name", "last_name", mode="before")
     @classmethod

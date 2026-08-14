@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>{% block title %}Termeet{% endblock %}</title>
+  <!--[if !mso]><!-->
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700&display=swap" rel="stylesheet">
+  <!--<![endif]-->
+  <style>
+    body, table, td, a {
+      font-family: Manrope, Arial, Helvetica, sans-serif;
+    }
+    img { border: 0; }
+    table { border-collapse: collapse; }
+    a { text-decoration: none; }
+    @media (max-width: 620px) {
+      .email-card { width: 100% !important; }
+      .email-pad { padding-left: 20px !important; padding-right: 20px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0; padding:0; background-color:#f8f8f8; color:#2f2f2f;">
+  <div style="display:none; max-height:0; overflow:hidden; mso-hide:all;">
+    {% block preheader %}{% endblock %}
+  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8f8f8;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" class="email-card" width="560" cellpadding="0" cellspacing="0" border="0" style="width:560px; max-width:560px; background-color:#ffffff; border:1px solid #ececec; border-radius:16px;">
+          <tr>
+            <td class="email-pad" style="padding:32px 32px 8px; font-size:16px; font-weight:700; line-height:24px; color:#2f2f2f;">
+              termeet
+            </td>
+          </tr>
+          <tr>
+            <td class="email-pad" style="padding:16px 32px 0; font-size:24px; font-weight:700; line-height:32px; color:#2f2f2f;">
+              {% block heading %}{% endblock %}
+            </td>
+          </tr>
+          <tr>
+            <td class="email-pad" style="padding:16px 32px 0; font-size:16px; font-weight:500; line-height:24px; color:#2f2f2f;">
+              {% block body %}{% endblock %}
+            </td>
+          </tr>
+          <tr>
+            <td class="email-pad" align="center" style="padding:24px 32px 8px;">
+              <a href="{% block cta_href %}#{% endblock %}"
+                 style="display:block; width:100%; box-sizing:border-box; padding:16px 24px; background-color:#1c2651; color:#f8f8f8; border-radius:16px; font-size:16px; font-weight:700; line-height:24px; text-align:center; text-decoration:none;">
+                {% block cta_label %}Продолжить{% endblock %}
+              </a>
+            </td>
+          </tr>
+          {% block extra %}{% endblock %}
+          <tr>
+            <td class="email-pad" style="padding:24px 32px 32px; font-size:12px; font-weight:500; line-height:18px; color:#9f9f9f;">
+              Если кнопка не открывается, скопируйте ссылку:<br>
+              <a href="{{ self.cta_href() }}" style="color:#2651cb; word-break:break-all;">{{ self.cta_href() }}</a>
+              <br><br>
+              Письмо отправил Termeet, отвечать на него не нужно.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

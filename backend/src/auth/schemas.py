@@ -22,6 +22,17 @@ class Code(BaseModel):
     state: str | None = None
 
 
+class YandexTokenLogin(BaseModel):
+    access_token: str = Field(..., min_length=8, max_length=4096)
+    expires_in: int | None = None
+    state: str | None = None
+
+
+class YandexClientPublic(BaseModel):
+    client_id: str
+    scope: str
+
+
 class Email(BaseModel):
     email: EmailStr = Field(..., max_length=128)
 
@@ -53,16 +64,18 @@ class AuthTokens(BaseModel):
 
 class YandexUserData(BaseModel):
     id: str
-    login: str
-    client_id: str
-    display_name: str
-    real_name: str
-    first_name: str
-    last_name: str
-    sex: str
+    login: str = ""
+    client_id: str = ""
+    display_name: str = ""
+    real_name: str = ""
+    first_name: str = ""
+    last_name: str = ""
+    sex: str = ""
     default_email: str
-    emails: list
-    psuid: str
+    emails: list = Field(default_factory=list)
+    psuid: str = ""
+
+    model_config = ConfigDict(extra="ignore")
 
 
 class RegisterUserData(BaseModel):

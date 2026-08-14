@@ -16,6 +16,11 @@ from backend.src.auth.schemas import (
     LoginUserData,
     YandexUserData,
     TokenInfo,
+    YandexTokenLogin,
+    YandexClientPublic,
+)
+from backend.src.integrations.yandex_telemost import (
+    YANDEX_INTEGRATION_SCOPES,
 )
 from backend.src.auth.services import Service
 from backend.src.auth.dependencies import (
@@ -40,6 +45,18 @@ def set_refresh_cookie(response: Response, refresh_token: str) -> None:
         httponly=True,
         secure=config.cookies.HTTPS_TRUE,
         samesite="lax",
+    )
+
+
+@router.get(
+    "/yandex/client",
+    response_model=YandexClientPublic,
+    summary="Публичный client_id для виджета Яндекс ID",
+)
+async def get_yandex_client():
+    return YandexClientPublic(
+        client_id=config.yandex_auth.CLIENT_ID,
+        scope=YANDEX_INTEGRATION_SCOPES,
     )
 
 
@@ -103,6 +120,45 @@ async def auth_yandex_issue_jwt(
 
     set_refresh_cookie(response, refresh_token)
 
+    return TokenInfo(access_token=access_token)
+
+
+@router.post(
+    "/yandex/token",
+    summary="Вход по access-токену виджета Яндекс ID",
+    response_model=TokenInfo,
+    responses={
+        401: {
+            "description": "Не валидный токен Яндекса",
+            "model": ErrorResponse,
+        },
+        400: {
+            "description": "Пользователь с эти email-ом уже существует",
+            "model": ErrorResponse,
+        },
+    },
+)
+async def auth_yandex_from_token(
+    response: Response,
+    payload: YandexTokenLogin,
+    session: AsyncSession = Depends(get_async_session),
+    cookie_user: UserSchema | None = Depends(get_optional_refresh_user),
+):
+    service = Service(session)
+    tokens = AuthTokens(
+        access_token=payload.access_token,
+        expires_in=payload.expires_in or 0,
+    )
+    user_data: YandexUserData = await service.get_yandex_user_data(
+        payload.access_token
+    )
+    current = cookie_user if (payload.state or "") == "link" else None
+    user: UserSchema = await service.auth_yandex_user(
+        user_data, tokens, current
+    )
+    await service.set_verify_user(user)
+    access_token, refresh_token = await service.create_tokens(user)
+    set_refresh_cookie(response, refresh_token)
     return TokenInfo(access_token=access_token)
 
 

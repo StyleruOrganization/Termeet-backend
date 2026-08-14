@@ -34,4 +34,7 @@ COPY pyproject.toml pyproject.toml
 
 ENV PATH="/code/.venv/bin:$PATH"
 
+# uvicorn без этого пакета принимает WebSocket как обычный GET и отвечает 404
+RUN pip install --no-cache-dir "websockets>=10.4"
+
 COPY backend ./backend

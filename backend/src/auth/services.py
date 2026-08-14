@@ -21,6 +21,7 @@ from backend.src.auth.schemas import (
     YandexUserData,
     UserData,
 )
+from backend.src.auth.infrastructure import Infrastructure
 from backend.src.config import config
 from backend.src.auth.utils import (
     create_jwt_token,
@@ -92,12 +93,20 @@ class Service:
 
         async with httpx.AsyncClient() as client:
             response = await client.get(url=f"{base_url}", headers=headers)
-
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Exception from yandex: invalid yandex token",
+                )
             user_data: dict = response.json()
 
-        user_data = YandexUserData(**user_data)
-
-        return user_data
+        try:
+            return YandexUserData(**user_data)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Exception from yandex: invalid yandex token",
+            )
 
     async def auth_yandex_user(
         self,

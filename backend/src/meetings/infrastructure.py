@@ -59,11 +59,14 @@ class Infrastructure(Repository):
         self, meeting: MeetCreate, user: UserSchema | None = None
     ) -> Optional[Meetings]:
 
-        payload = meeting.model_dump(by_alias=True)
-        invited = payload.pop("invitedUserIds", None)
-        payload.pop("invited_user_ids", None)
+        payload = meeting.model_dump()
+        invited = payload.pop("invited_user_ids", None)
+        payload.pop("dataRange", None)
 
-        object: Meetings = Meetings(**payload)
+        object: Meetings = Meetings(
+            **payload,
+            data_range=meeting.dataRange or [],
+        )
 
         if invited:
             object.invited_user_ids = [str(item) for item in invited]

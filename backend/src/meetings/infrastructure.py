@@ -64,13 +64,11 @@ class Infrastructure(Repository):
             description=meeting.description,
             link=meeting.link,
             duration=meeting.duration,
-            data_range=meeting.dataRange or [],
+            data_range=meeting.data_range or [],
+            invited_user_ids=[
+                str(item) for item in (meeting.invited_user_ids or [])
+            ],
         )
-
-        if meeting.invited_user_ids:
-            object.invited_user_ids = [
-                str(item) for item in meeting.invited_user_ids
-            ]
 
         if user:
             # Достаем пользователя из словаря сессии
@@ -93,7 +91,8 @@ class Infrastructure(Repository):
         record.description = meeting.description
         record.link = meeting.link
         record.duration = meeting.duration
-        record.data_range = meeting.dataRange
+        if meeting.data_range is not None:
+            record.data_range = meeting.data_range
 
         self.session.add(record)
         await self.session.flush()

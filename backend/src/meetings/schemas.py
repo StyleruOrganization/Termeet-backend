@@ -1,7 +1,19 @@
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+
+
+def _json_names(snake: str, camel: str) -> AliasChoices:
+    # snake первым: ORM читает колонку, camel — JSON с фронта.
+    return AliasChoices(snake, camel)
+
+
+_API = ConfigDict(
+    from_attributes=True,
+    populate_by_name=True,
+    serialize_by_alias=True,
+)
 
 
 class SlotsUser(BaseModel):
@@ -10,14 +22,14 @@ class SlotsUser(BaseModel):
     slots: list[list[str]]
     is_auth: bool = Field(False, alias="isAuth")
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = _API
 
 
 class ObserverUser(BaseModel):
     name: str
     user_id: str | None = Field(None, alias="userId")
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = _API
 
 
 class MeetPermissions(BaseModel):
@@ -31,15 +43,32 @@ class MeetPermissions(BaseModel):
     can_set_final: bool = Field(serialization_alias="canSetFinal")
     is_observer: bool = Field(serialization_alias="isObserver")
 
+    model_config = ConfigDict(serialize_by_alias=True)
+
 
 class MeetSettingsUpdate(BaseModel):
-    anyone_can_edit: bool = Field(alias="anyoneCanEdit")
-    anyone_can_delete_participants: bool = Field(
-        alias="anyoneCanDeleteParticipants"
+    anyone_can_edit: bool = Field(
+        validation_alias=_json_names("anyone_can_edit", "anyoneCanEdit"),
+        serialization_alias="anyoneCanEdit",
     )
-    require_login_to_vote: bool = Field(alias="requireLoginToVote")
+    anyone_can_delete_participants: bool = Field(
+        validation_alias=_json_names(
+            "anyone_can_delete_participants", "anyoneCanDeleteParticipants"
+        ),
+        serialization_alias="anyoneCanDeleteParticipants",
+    )
+    require_login_to_vote: bool = Field(
+        validation_alias=_json_names(
+            "require_login_to_vote", "requireLoginToVote"
+        ),
+        serialization_alias="requireLoginToVote",
+    )
     anyone_can_set_final: bool | None = Field(
-        None, alias="anyoneCanSetFinal"
+        None,
+        validation_alias=_json_names(
+            "anyone_can_set_final", "anyoneCanSetFinal"
+        ),
+        serialization_alias="anyoneCanSetFinal",
     )
 
     model_config = ConfigDict(populate_by_name=True)
@@ -63,7 +92,7 @@ class UserMeetingItem(BaseModel):
     )
     participant_count: int = Field(0, serialization_alias="participantCount")
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = _API
 
 
 class Meet(BaseModel):
@@ -71,20 +100,18 @@ class Meet(BaseModel):
     description: str | None = Field(None, max_length=400)
     link: str | None = Field(None, max_length=128)
     duration: str | None = None
-    dataRange: list[list[str]] | None = Field(
+    data_range: list[list[str]] | None = Field(
         None,
-        alias="data_range",
+        validation_alias=_json_names("data_range", "dataRange"),
         serialization_alias="dataRange",
     )
-    invited_user_ids: list[UUID] | None = Field(
-        None, alias="invitedUserIds"
+    invited_user_ids: list[str] | None = Field(
+        None,
+        validation_alias=_json_names("invited_user_ids", "invitedUserIds"),
+        serialization_alias="invitedUserIds",
     )
 
-    model_config = ConfigDict(
-        from_attributes=True,
-        populate_by_name=True,
-        serialize_by_alias=True,
-    )
+    model_config = _API
 
 
 class MeetCreate(Meet):
@@ -120,12 +147,16 @@ class MeetResponse(Meet):
     @field_validator("slots", mode="before")
     @classmethod
     def validate_slots(cls, slots_db):
-        return [
-            SlotsUser(
-                name=slot["name"],
-                userId=slot.get("user_id"),
-                slots=slot["slots"],
-                is_auth=slot.get("user_id") is not None,
+        result = []
+        for slot in slots_db or []:
+            if not isinstance(slot, dict) or not slot.get("name"):
+                continue
+            result.append(
+                SlotsUser(
+                    name=slot["name"],
+                    userId=slot.get("user_id"),
+                    slots=slot.get("slots") or [],
+                    is_auth=slot.get("user_id") is not None,
+                )
             )
-            for slot in slots_db or []
-        ]
+        return result

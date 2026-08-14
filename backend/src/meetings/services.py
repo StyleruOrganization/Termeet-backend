@@ -63,7 +63,32 @@ class Service:
     def _to_response(
         self, record: "Meetings", user: UserSchema | None
     ) -> MeetResponse:
-        meeting = MeetResponse.model_validate(record)
+        slots = record.slots if isinstance(record.slots, list) else []
+        invited = (
+            record.invited_user_ids
+            if isinstance(record.invited_user_ids, list)
+            else []
+        )
+        meeting = MeetResponse.model_validate(
+            {
+                "id": record.id,
+                "name": record.name,
+                "description": record.description,
+                "link": record.link,
+                "duration": record.duration,
+                "data_range": record.data_range or [],
+                "invited_user_ids": [str(item) for item in invited],
+                "slots": slots,
+                "anyone_can_edit": record.anyone_can_edit,
+                "anyone_can_delete_participants": (
+                    record.anyone_can_delete_participants
+                ),
+                "require_login_to_vote": record.require_login_to_vote,
+                "anyone_can_set_final": record.anyone_can_set_final,
+                "final_slot": record.final_slot,
+                "observers": [],
+            }
+        )
         meeting.is_creator_auth = record.owner_id is not None
         meeting.is_creator = is_owner(record, user)
         meeting.organizer_name = organizer_slot_name(record)
@@ -74,6 +99,7 @@ class Service:
                 userId=item.get("user_id"),
             )
             for item in (record.observers or [])
+            if isinstance(item, dict)
         ]
         if meeting.is_creator:
             meeting.observers = observers
@@ -97,7 +123,7 @@ class Service:
         self, hash: UUID, meeting: MeetCreate, user: UserSchema | None
     ):
         record: Meetings = await self.repository.get_meeting(hash)
-        meeting.dataRange = record.data_range
+        meeting.data_range = record.data_range
 
         if not can_edit_meet(record, user):
             raise HTTPException(

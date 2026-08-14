@@ -39,7 +39,7 @@ class MeetingCreateService(MeetingCreateGRPCServicer):
             description=request.description,
             link=request.link,
             duration=request.duration,
-            dataRange=data_range,
+            data_range=data_range,
         )
 
         async with self.session_factory() as session:

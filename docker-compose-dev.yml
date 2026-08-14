@@ -9,6 +9,8 @@ volumes:
   postgres_data:
   rabbitmq-data:
   minio_data:
+  prometheus_data:
+  grafana_data:
 
 services:  
 
@@ -99,3 +101,57 @@ services:
       VIRTUAL_PORT: 9001
       LETSENCRYPT_HOST: minio-dev.termeet-dev.ru
       LETSENCRYPT_EMAIL: maklakov.daniils@yandex.ru
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    container_name: prometheus-dev
+    volumes:
+      - prometheus_data:/prometheus
+      - ./prometheus_data/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=15d'
+    networks:
+      - backend-net
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    container_name: grafana-dev
+    env_file:
+      - .env
+    environment:
+      VIRTUAL_HOST: grafana.termeet-dev.ru
+      VIRTUAL_PORT: 3000
+      LETSENCRYPT_HOST: grafana.termeet-dev.ru
+      LETSENCRYPT_EMAIL: maklakov.daniils@yandex.ru
+      GF_SERVER_ROOT_URL: https://grafana.termeet-dev.ru
+      GF_USERS_DEFAULT_THEME: light
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana_data/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./grafana_data/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./grafana_data/dashboards:/etc/grafana/provisioning/dashboards/json:ro
+    networks:
+      - backend-net
+      - nginx-proxy
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: node-exporter
+    pid: host
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/host/rootfs'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/rootfs:ro
+    networks:
+      - backend-net
+    restart: unless-stopped

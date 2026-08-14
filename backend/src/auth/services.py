@@ -166,10 +166,8 @@ class Service:
 
         user_data: UserData = await UserData.from_register(user_reg_data)
         user: Users = await self.repository.register_user(user_data)
+        await self.repository.session.commit()
         user: UserSchema = UserSchema.model_validate(user)
-
-        if user_reg_data.do_verify_email:
-            await self.create_verification_token_and_send_email(user)
 
         return user
 
@@ -203,7 +201,12 @@ class Service:
         query_string = parse.urlencode(query_params, quote_via=parse.quote)
         verification_link = f"{config.email.VERIFICATION_LINK}?{query_string}"
 
-        self.background_tasks.add_task(self.send_verification_email, user, verification_link)
+        if self.background_tasks is None:
+            return
+
+        self.background_tasks.add_task(
+            self.send_verification_email, user, verification_link
+        )
 
     async def set_verify_user(self, user: UserSchema):
         user: Users = await self.repository.set_verify_user(user)
@@ -211,27 +214,35 @@ class Service:
         return {"detail": "User verified successfully"}
 
     async def create_reset_password_token_and_send_email(self, email: Email):
-        email = email.email
-        if user := (await self.repository.check_user_in_db_by_email(email)):
+        recipient = str(email.email).strip().lower()
+        user = await self.repository.check_user_in_db_by_email(recipient)
+        if not user or self.background_tasks is None:
+            return
 
-            jwt_payload = {
-                "sub": str(user.id),
-            }
+        jwt_payload = {
+            "sub": str(user.id),
+        }
 
-            reset_password_token = await create_jwt_token(
-                token_type=RESET_PASSWORD_TOKEN_TYPE,
-                token_data=jwt_payload,
-                expire_minutes=config.reset_password.RESET_PASSWORD_TOKEN_EXPIRE_MINUTES,
-            )
+        reset_password_token = await create_jwt_token(
+            token_type=RESET_PASSWORD_TOKEN_TYPE,
+            token_data=jwt_payload,
+            expire_minutes=(
+                config.reset_password.RESET_PASSWORD_TOKEN_EXPIRE_MINUTES
+            ),
+        )
 
-            query_params = {
-                "token": reset_password_token,
-            }
+        query_params = {
+            "token": reset_password_token,
+        }
 
-            query_string = parse.urlencode(query_params, quote_via=parse.quote)
-            reset_password_link = f"{config.reset_password.RESET_PASSWORD_LINK}?{query_string}"
+        query_string = parse.urlencode(query_params, quote_via=parse.quote)
+        reset_password_link = (
+            f"{config.reset_password.RESET_PASSWORD_LINK}?{query_string}"
+        )
 
-            self.background_tasks.add_task(self.send_reset_password_email, email, reset_password_link)
+        self.background_tasks.add_task(
+            self.send_reset_password_email, recipient, reset_password_link
+        )
 
     async def send_reset_password_email(self, email, reset_password_link):
         recipient = email
@@ -250,19 +261,22 @@ class Service:
 
         html_content = template.render(reset_password_link=reset_password_link)
 
-        return await send_email(
-            recipient=recipient,
-            subject=subject,
-            plain_content=plain_content,
-            html_content=html_content,
-        )
+        try:
+            return await send_email(
+                recipient=recipient,
+                subject=subject,
+                plain_content=plain_content,
+                html_content=html_content,
+            )
+        except Exception:
+            return None
 
     async def set_new_password(self, user: UserSchema, password: Password):
         password = password.password
         password_hash = await hash_password(password)
         await self.repository.set_new_password(user, password_hash)
 
-        return {"detail": "The new password was set successfully"}
+        return user
 
 
     async def send_verification_email(
@@ -291,9 +305,12 @@ class Service:
             last_name=user.last_name,
         )
 
-        return await send_email(
-            recipient=recipient,
-            subject=subject,
-            plain_content=plain_content,
-            html_content=html_content,
-        )
+        try:
+            return await send_email(
+                recipient=recipient,
+                subject=subject,
+                plain_content=plain_content,
+                html_content=html_content,
+            )
+        except Exception:
+            return None

@@ -6,8 +6,8 @@ networks:
 volumes:
   postgres_data:
   rabbitmq-data:
-  # grafana_data:
-  # prometheus_data:
+  grafana_data:
+  prometheus_data:
   minio_data:
 
 
@@ -123,26 +123,46 @@ services:
     networks:
       - backend-net
 
-  # prometheus:
-  #   image: prom/prometheus
-  #   container_name: prometheus
-  #   ports:
-  #     - 9090:9090
-  #   networks:
-  #     - backend-net
-  #   volumes:
-  #     - prometheus_data:/prometheus
-  #     - ./prometheus_data/prometheus.yml:/etc/prometheus/prometheus.yml
-  #   command:
-  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    container_name: prometheus-local
+    ports:
+      - 9090:9090
+    networks:
+      - backend-net
+    volumes:
+      - prometheus_data:/prometheus
+      - ./prometheus_data/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=15d'
+    depends_on:
+      - backend
 
-  # grafana:
-  #   image: grafana/grafana
-  #   container_name: grafana
-  #   ports:
-  #     - 3000:3000
-  #   networks:
-  #     - backend-net
-  #   volumes:
-  #     - ./grafana_data/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
-  #     - grafana_data:/var/lib/grafana
+  grafana:
+    image: grafana/grafana:11.6.0
+    container_name: grafana-local
+    ports:
+      - 3000:3000
+    networks:
+      - backend-net
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_DEFAULT_THEME: light
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana_data/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./grafana_data/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./grafana_data/dashboards:/etc/grafana/provisioning/dashboards/json:ro
+    depends_on:
+      - prometheus
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: node-exporter-local
+    ports:
+      - 9100:9100
+    networks:
+      - backend-net

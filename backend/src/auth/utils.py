@@ -1,6 +1,6 @@
 import asyncio
+import logging
 from datetime import timedelta, datetime, UTC
-from fastapi import HTTPException, status
 
 import jwt
 import bcrypt
@@ -9,6 +9,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from backend.src.config import config
+
+logger = logging.getLogger(__name__)
 
 ACCESS_TOKEN_TYPE = "access"
 REFRESH_TOKEN_TYPE = "refresh"
@@ -68,24 +70,39 @@ async def decode_jwt(
     return decoded
 
 
+def _hash_as_bytes(hashed_password: bytes | str | memoryview) -> bytes:
+    if isinstance(hashed_password, memoryview):
+        hashed_password = hashed_password.tobytes()
+    if isinstance(hashed_password, str):
+        hashed_password = hashed_password.encode("utf-8")
+    return bytes(hashed_password).rstrip(b"\x00")
+
+
 async def hash_password(password: str) -> bytes:
     salt = bcrypt.gensalt()
-    return await asyncio.to_thread(bcrypt.hashpw, password.encode(), salt)
-
-
-async def validate_password(password: str, hashed_password: bytes) -> bool:
     return await asyncio.to_thread(
-        bcrypt.checkpw,
-        password.encode(),
-        hashed_password,
+        bcrypt.hashpw, password.encode("utf-8"), salt
     )
+
+
+async def validate_password(
+    password: str, hashed_password: bytes | str | memoryview
+) -> bool:
+    try:
+        return await asyncio.to_thread(
+            bcrypt.checkpw,
+            password.encode("utf-8"),
+            _hash_as_bytes(hashed_password),
+        )
+    except (TypeError, ValueError):
+        return False
 
 
 async def send_email(
     recipient: str, subject: str, plain_content: str, html_content: str = ""
 ):
     message = MIMEMultipart("alternative")
-    message["From"] = config.email.EMAIL_USERNAME
+    message["From"] = config.email.EMAIL_USERNAME or "noreply@termeet.tech"
     message["To"] = recipient
     message["Subject"] = subject
 
@@ -111,16 +128,22 @@ async def send_email(
 
     if not config.email.USE_MAILDEV:
         send_email_args["username"] = config.email.EMAIL_USERNAME
-        send_email_args["password"] = config.email.EMAIL_PASSWORD.get_secret_value()
-        send_email_args["use_tls"] = True
+        if config.email.EMAIL_PASSWORD:
+            send_email_args["password"] = (
+                config.email.EMAIL_PASSWORD.get_secret_value()
+            )
+        # 465 — сразу TLS, 587 — STARTTLS
+        if config.email.EMAIL_PORT == 465:
+            send_email_args["use_tls"] = True
+        else:
+            send_email_args["start_tls"] = True
 
     try:
         await aiosmtplib.send(message, **send_email_args)
-    except Exception as e:
-        # Придумать, как обрабатывать эти ошибки по-другому
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+    except Exception:
+        # Фоновая отправка: исключение здесь откатывает транзакцию
+        # регистрации, и следующий /login получает 401.
+        logger.exception("Failed to send email to %s", recipient)
 
     # try:
     #     # Для Яндекса обычно используется порт 465 и use_tls=True

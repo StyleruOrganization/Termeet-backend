@@ -153,7 +153,7 @@ async def get_current_active_user(
 
 async def validate_login_user(
     user_data: LoginUserData,
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession,
 ):
     repository = Infrastructure(session)
 

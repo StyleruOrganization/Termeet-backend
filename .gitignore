@@ -8,3 +8,11 @@ frontend/
 certs/
 feedback_images/
 Отправить Кириллу.txt
+
+.DS_Store
+
+# Локальные SSH-ключи, не в репозиторий
+/new
+/new.pub
+/ssh-key-*
+*.pem

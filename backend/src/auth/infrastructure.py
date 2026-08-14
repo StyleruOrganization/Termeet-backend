@@ -1,5 +1,5 @@
 from typing import TYPE_CHECKING
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from backend.src.auth.repositories import Repository
 from backend.src.auth.schemas import YandexUserData
@@ -27,19 +27,16 @@ class Infrastructure(Repository):
 
     async def register_user(self, user: UserData) -> Users:
         object: Users = Users(
-            **user.model_dump(
-                include={
-                    "first_name",
-                    "last_name",
-                    "email",
-                    "additional_emails",
-                }
-            )
+            first_name=user.first_name,
+            last_name=user.last_name,
+            email=user.email,
+            additional_emails=user.additional_emails,
+            password_hash=(
+                user.password_hash if user.provider == "DEFAULT" else None
+            ),
         )
 
-        if user.provider == "DEFAULT":
-            object.password_hash = user.password_hash
-        else:
+        if user.provider != "DEFAULT":
             object.oauth_accounts.append(
                 OAuthAccount(
                     provider=user.provider,
@@ -66,7 +63,7 @@ class Infrastructure(Repository):
         return await self.session.get(Users, id)
 
     async def check_user_in_db_by_email(self, email: str) -> Users | None:
-        query = select(Users).where(Users.email == email)
+        query = select(Users).where(func.lower(Users.email) == email.lower())
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 

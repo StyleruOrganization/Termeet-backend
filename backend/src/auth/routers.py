@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, Form, Response, BackgroundTasks
+from fastapi import APIRouter, Depends, Form, Response, BackgroundTasks, HTTPException
 from fastapi.responses import RedirectResponse
+from starlette import status
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +13,7 @@ from backend.src.auth.schemas import (
     Password,
     AuthTokens,
     RegisterUserData,
+    LoginUserData,
     YandexUserData,
     TokenInfo,
 )
@@ -27,6 +29,17 @@ from backend.src.auth.utils import REFRESH_TOKEN_COOKIE
 from backend.src.config import config
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+
+def set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    response.set_cookie(
+        key=REFRESH_TOKEN_COOKIE,
+        value=refresh_token,
+        path="/",
+        httponly=True,
+        secure=config.cookies.HTTPS_TRUE,
+        samesite="lax",
+    )
 
 
 @router.get(
@@ -81,14 +94,7 @@ async def auth_yandex_issue_jwt(
 
     access_token, refresh_token = await service.create_tokens(user)
 
-    response.set_cookie(
-        key=REFRESH_TOKEN_COOKIE,
-        value=refresh_token,
-        path="/",
-        httponly=True,
-        secure=config.cookies.HTTPS_TRUE,
-        samesite="lax",
-    )
+    set_refresh_cookie(response, refresh_token)
 
     return TokenInfo(access_token=access_token)
 
@@ -172,7 +178,9 @@ async def reset_password(
 @router.post(
     "/reset-password/verify",
     summary="Проверка токена сброса пароля и замена пароля на новый",
-    description="Проверяет валидность токена сброса пароля",
+    description="Проверяет валидность токена сброса пароля \
+                 и выдаёт новые токены",
+    response_model=TokenInfo,
     responses={
         401: {
             "description": "Срок действия токена истек \
@@ -186,20 +194,30 @@ async def reset_password(
     },
 )
 async def verify_reset_password_token(
+    response: Response,
     password: Password,
     user: UserSchema = Depends(get_current_auth_user_from_reset_password),
     session: AsyncSession = Depends(get_async_session),
 ):
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid token error (token is expired)",
+        )
+
     service = Service(session)
-    return await service.set_new_password(user, password)
+    user = await service.set_new_password(user, password)
+    access_token, refresh_token = await service.create_tokens(user)
+    set_refresh_cookie(response, refresh_token)
+    return TokenInfo(access_token=access_token)
 
 @router.post(
     "/register",
     summary="Регистрация нового пользователя",
     description="Регистрирует нового пользователя, получает его данные, \
-                 хеширует пароль, сохраняет в БД; также отправляет \
-                 письмо с подтверждением",
-    response_model=UserSchema,
+                 хеширует пароль, сохраняет в БД, выдаёт токены; \
+                 также отправляет письмо с подтверждением",
+    response_model=TokenInfo,
     responses={
         400: {
             "description": "Пользователь с эти email-ом уже существует",
@@ -208,14 +226,20 @@ async def verify_reset_password_token(
     },
 )
 async def default_register_user(
+    response: Response,
     background_tasks: BackgroundTasks,
     user_data: RegisterUserData,
     session: AsyncSession = Depends(get_async_session),
 ):
     service = Service(session, background_tasks)
-    # Метод сервиса снизу включает верификацию
     user = await service.register_user(user_data)
-    return user
+
+    if user_data.do_verify_email:
+        await service.create_verification_token_and_send_email(user)
+
+    access_token, refresh_token = await service.create_tokens(user)
+    set_refresh_cookie(response, refresh_token)
+    return TokenInfo(access_token=access_token)
 
 
 @router.post(
@@ -237,20 +261,14 @@ async def default_register_user(
 )
 async def auth_user_issue_jwt(
     response: Response,
-    user: UserSchema = Depends(validate_login_user),
+    user_data: LoginUserData,
     session: AsyncSession = Depends(get_async_session),
 ):
+    user = await validate_login_user(user_data, session)
     service = Service(session)
     access_token, refresh_token = await service.create_tokens(user)
 
-    response.set_cookie(
-        key=REFRESH_TOKEN_COOKIE,
-        value=refresh_token,
-        path="/",
-        httponly=True,
-        secure=config.cookies.HTTPS_TRUE,
-        samesite="lax",
-    )
+    set_refresh_cookie(response, refresh_token)
 
     return TokenInfo(access_token=access_token)
 

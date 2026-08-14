@@ -2,7 +2,7 @@ from uuid import uuid4, UUID
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Computed, String, ARRAY, ForeignKey
+from sqlalchemy import Computed, LargeBinary, String, ARRAY, ForeignKey
 
 from backend.src.models import Base
 
@@ -28,7 +28,9 @@ class Users(Base):
         ARRAY(String)
     )
 
-    password_hash: Mapped[Optional[bytes]] = mapped_column(nullable=True)
+    password_hash: Mapped[Optional[bytes]] = mapped_column(
+        LargeBinary(), nullable=True
+    )
 
     oauth_accounts: Mapped[Optional[list["OAuthAccount"]]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

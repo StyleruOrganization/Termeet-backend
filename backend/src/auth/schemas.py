@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field, EmailStr
+from pydantic import BaseModel, ConfigDict, Field, EmailStr, field_validator
 
 from backend.src.auth.utils import hash_password
 
@@ -9,6 +9,13 @@ class Code(BaseModel):
 
 class Email(BaseModel):
     email: EmailStr = Field(..., max_length=128)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def strip_email(cls, value: str) -> str:
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
 
 class Password(BaseModel):
@@ -40,7 +47,14 @@ class RegisterUserData(BaseModel):
     last_name: str = Field(..., min_length=1, max_length=128)
     email: EmailStr = Field(..., max_length=128)
     password: str = Field(..., min_length=6, max_length=128)
-    do_verify_email: bool
+    do_verify_email: bool = True
+
+    @field_validator("email", "first_name", "last_name", mode="before")
+    @classmethod
+    def strip_text(cls, value: str) -> str:
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
 
 class UserData(BaseModel):
@@ -72,15 +86,22 @@ class UserData(BaseModel):
         return cls(
             first_name=data.first_name,
             last_name=data.last_name,
-            email=data.email,
+            email=str(data.email).strip().lower(),
             password_hash=await hash_password(data.password),
             provider="DEFAULT",
         )
 
 
 class LoginUserData(BaseModel):
-    email: str
-    password: str
+    email: EmailStr
+    password: str = Field(..., min_length=1, max_length=128)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def strip_email(cls, value: str) -> str:
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
 
 class TokenInfo(BaseModel):

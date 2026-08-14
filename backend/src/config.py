@@ -69,7 +69,7 @@ class EmailConfig(ConfigBase):
 
 class ResetPasswordConfig(ConfigBase):
     RESET_PASSWORD_LINK: str
-    RESET_PASSWORD_TOKEN_EXPIRE_MINUTES: int = 15
+    RESET_PASSWORD_TOKEN_EXPIRE_MINUTES: int = 60
 
 
 class RabbitMQConfig(ConfigBase):

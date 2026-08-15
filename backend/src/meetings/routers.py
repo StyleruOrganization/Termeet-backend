@@ -179,7 +179,7 @@ async def observe_meeting(
 @router.patch(
     "/{hash}/final",
     response_model=MeetResponse,
-    summary="Назначить итоговое время встречи",
+    summary="Назначить или изменить итоговое время встречи",
 )
 async def set_final_time(
     hash: UUID,

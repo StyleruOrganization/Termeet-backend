@@ -317,6 +317,7 @@ class Service:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Select final time first",
             )
+        was_set = has_final_slot(record)
         await self.repository.set_final_slot(record, payload.slots)
         await self.notify_live(hash)
         emails: list[str] = []
@@ -328,7 +329,7 @@ class Service:
         for extra in record.emails or []:
             emails.append(extra)
         await notify_final_time(
-            emails, record.name, record.id, record.link
+            emails, record.name, record.id, record.link, changed=was_set
         )
         return self._to_response(record, user)
 

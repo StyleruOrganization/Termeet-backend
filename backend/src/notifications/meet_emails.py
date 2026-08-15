@@ -79,9 +79,24 @@ async def notify_final_time(
     meeting_name: str,
     meeting_hash,
     join_link: str | None,
+    changed: bool = False,
 ) -> None:
     link = meet_url(meeting_hash)
     extra = f" Ссылка на звонок: {join_link}" if join_link else ""
+    if changed:
+        subject = f"Время изменили: {meeting_name}"
+        heading = "Итоговое время обновили"
+        body = (
+            f"Для встречи «{meeting_name}» выбрали другое итоговое время. "
+            f"Откройте сетку, фиолетовые ячейки — это оно.{extra}"
+        )
+    else:
+        subject = f"Назначено время: {meeting_name}"
+        heading = "Итоговое время встречи"
+        body = (
+            f"Для встречи «{meeting_name}» выбрали итоговое время. "
+            f"Откройте сетку, фиолетовые ячейки — это оно.{extra}"
+        )
     seen: set[str] = set()
     for email in emails:
         if not email or email in seen:
@@ -89,11 +104,8 @@ async def notify_final_time(
         seen.add(email)
         await send_meet_email(
             recipient=email,
-            subject=f"Назначено время: {meeting_name}",
-            heading="Итоговое время встречи",
-            body=(
-                f"Для встречи «{meeting_name}» выбрали итоговое время. "
-                f"Откройте сетку, фиолетовые ячейки — это оно.{extra}"
-            ),
+            subject=subject,
+            heading=heading,
+            body=body,
             cta=link,
         )

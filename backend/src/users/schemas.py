@@ -85,12 +85,16 @@ class UserSchema(BaseModel):
     availability_template: list[AvailabilityInterval] = Field(
         default_factory=list
     )
+    bot_templates: list[dict] = Field(default_factory=list)
     locale: str = "ru"
     grid_window_start: str = "10 : 00"
     grid_window_end: str = "19 : 00"
     notify_on_vote: bool = True
     notify_on_final: bool = True
+    notify_email: bool = True
+    notify_telegram: bool = True
     show_onboarding: bool = True
+    has_password: bool = False
     has_yandex: bool = False
     has_telemost: bool = False
     has_calendar: bool = False
@@ -127,6 +131,7 @@ class UserSchema(BaseModel):
                 data, "availability_template", []
             )
             or [],
+            "bot_templates": getattr(data, "bot_templates", []) or [],
             "locale": getattr(data, "locale", "ru") or "ru",
             "grid_window_start": getattr(
                 data, "grid_window_start", "10 : 00"
@@ -138,8 +143,11 @@ class UserSchema(BaseModel):
             or "19 : 00",
             "notify_on_vote": getattr(data, "notify_on_vote", True),
             "notify_on_final": getattr(data, "notify_on_final", True),
+            "notify_email": getattr(data, "notify_email", True),
+            "notify_telegram": getattr(data, "notify_telegram", True),
             "show_onboarding": getattr(data, "show_onboarding", True),
             "has_avatar": bool(getattr(data, "avatar_key", None)),
+            "has_password": bool(getattr(data, "password_hash", None)),
             "has_yandex": False,
             "has_telemost": False,
             "has_calendar": False,
@@ -178,11 +186,14 @@ class UserSettingsUpdate(BaseModel):
     theme: Literal["light", "dark"] | None = None
     suggest_prefill: bool | None = None
     availability_template: list[AvailabilityInterval] | None = None
+    bot_templates: list[dict] | None = None
     locale: Literal["ru", "en", "de"] | None = None
     grid_window_start: str | None = Field(None, max_length=16)
     grid_window_end: str | None = Field(None, max_length=16)
     notify_on_vote: bool | None = None
     notify_on_final: bool | None = None
+    notify_email: bool | None = None
+    notify_telegram: bool | None = None
     show_onboarding: bool | None = None
     contact_email: EmailStr | None = Field(None, max_length=256)
     contact_telegram: str | None = Field(None, max_length=128)
@@ -227,6 +238,15 @@ class UserSettingsUpdate(BaseModel):
         if value is not None and len(value) > 200:
             raise ValueError("Слишком много интервалов в шаблоне")
         return value
+
+    @field_validator("bot_templates")
+    @classmethod
+    def limit_bot_templates(cls, value):
+        if value is None:
+            return value
+        from backend.src.bot_templates.schema import validate_template_list
+
+        return validate_template_list(value)
 
 
 class UserSearchItem(BaseModel):
@@ -277,4 +297,93 @@ class TelegramConfirmOut(BaseModel):
 
 class TelegramUnlinkIn(BaseModel):
     telegram_user_id: int
+
+
+class BotMeetCreateIn(BaseModel):
+    telegram_user_id: int
+    name: str = Field(..., min_length=1, max_length=128)
+    data_range: list[list[str]]
+    description: str | None = Field(None, max_length=400)
+    duration: str | None = None
+    link: str | None = Field(None, max_length=256)
+
+
+class BotMeetPushIn(BaseModel):
+    telegram_user_id: int
+    hash: UUID
+    note: str | None = Field(None, max_length=200)
+    only_pending: bool = False
+
+
+class BotMeetPushOut(BaseModel):
+    sent: int
+    muted: int = 0
+    no_telegram: int = 0
+    name: str
+    pending_empty: bool = False
+
+
+class BotStatusPerson(BaseModel):
+    name: str
+    has_telegram: bool = False
+
+
+class BotFinalWindow(BaseModel):
+    label: str
+    people: int
+    slots: list[list[str]]
+
+
+class BotMeetStatusOut(BaseModel):
+    hash: UUID
+    name: str
+    is_owner: bool
+    has_final: bool
+    final_label: str | None = None
+    voted: list[str] = Field(default_factory=list)
+    pending: list[BotStatusPerson] = Field(default_factory=list)
+    guest_count: int = 0
+    expected_count: int = 0
+    can_nudge: bool = False
+    can_set_final: bool = False
+    suggestions: list[BotFinalWindow] = Field(default_factory=list)
+
+
+class BotMeetFinalIn(BaseModel):
+    telegram_user_id: int
+    hash: UUID
+    slots: list[list[str]]
+
+
+class BotTeamItem(BaseModel):
+    id: int
+    slug: str
+    name: str
+
+
+class BotContextOut(BaseModel):
+    timezone: str
+    templates: list[dict] = Field(default_factory=list)
+    teams: list[BotTeamItem] = Field(default_factory=list)
+
+
+class BotMentionIn(BaseModel):
+    telegram_user_id: int | None = None
+    username: str | None = None
+
+
+class BotMeetFromTemplateIn(BaseModel):
+    telegram_user_id: int
+    telegram_username: str | None = Field(None, max_length=64)
+    slug: str
+    tokens: list[str] = Field(default_factory=list)
+    mentions: list[BotMentionIn] = Field(default_factory=list)
+    note: str | None = Field(None, max_length=200)
+
+
+class BotMeetFromTemplateOut(BaseModel):
+    hash: UUID
+    name: str
+    has_final: bool = False
+    missing: list[str] = Field(default_factory=list)
 

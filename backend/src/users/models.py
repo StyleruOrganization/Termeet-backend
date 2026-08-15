@@ -57,6 +57,9 @@ class Users(Base):
     availability_template: Mapped[list] = mapped_column(
         JSONB, nullable=False, default=lambda: [], server_default="[]"
     )
+    bot_templates: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=lambda: [], server_default="[]"
+    )
     locale: Mapped[str] = mapped_column(
         String(8), nullable=False, default="ru", server_default="ru"
     )
@@ -76,6 +79,12 @@ class Users(Base):
         Boolean, nullable=False, default=True, server_default="true"
     )
     notify_on_final: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    notify_email: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    notify_telegram: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )
     show_onboarding: Mapped[bool] = mapped_column(

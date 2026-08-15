@@ -21,6 +21,7 @@ class TeamMember(BaseModel):
 
 class TeamCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
+    slug: str = Field(..., min_length=1, max_length=16)
     description: str = Field("", max_length=400)
     member_ids: list[UUID] = Field(
         default_factory=list,
@@ -30,12 +31,19 @@ class TeamCreate(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    @field_validator("name", "description", mode="before")
+    @field_validator("name", "description", "slug", mode="before")
     @classmethod
     def strip_text(cls, value):
         if isinstance(value, str):
             return value.strip()
         return value
+
+    @field_validator("slug")
+    @classmethod
+    def slug_ok(cls, value: str) -> str:
+        from backend.src.bot_templates.schema import validate_team_slug
+
+        return validate_team_slug(value)
 
     @field_validator("member_ids")
     @classmethod
@@ -52,6 +60,7 @@ class TeamUpdate(TeamCreate):
 class TeamResponse(BaseModel):
     id: int
     name: str
+    slug: str
     description: str = ""
     has_photo: bool = Field(False, serialization_alias="hasPhoto")
     is_owner: bool = Field(False, serialization_alias="isOwner")

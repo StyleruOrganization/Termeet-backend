@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 from datetime import datetime
 
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile, status
 
 from backend.src.integrations.yandex_calendar import (
     has_calendar_scope,
@@ -48,6 +48,31 @@ class Service:
     async def update_settings(
         self, user: UserSchema, payload: UserSettingsUpdate
     ) -> UserSchema:
+        data = payload.model_dump(exclude_unset=True)
+        if data.get("bot_templates") is not None:
+            from backend.src.bot_templates.schema import (
+                normalize_token,
+                template_tokens,
+            )
+            from backend.src.teams.infrastructure import (
+                Infrastructure as TeamsInfra,
+            )
+
+            teams = await TeamsInfra(self.repository.session).list_for_user(
+                user.id
+            )
+            team_slugs = {
+                normalize_token(item.slug) for item in teams if item.slug
+            }
+            for token in template_tokens(data["bot_templates"]):
+                if token in team_slugs:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=(
+                            f"«{token}» совпадает со slug команды. "
+                            "Смените ключ, алиас или slug команды."
+                        ),
+                    )
         record = await self.repository.update_settings(user.id, payload)
         return UserSchema.model_validate(record)
 
@@ -316,7 +341,11 @@ class Service:
             )
         await self.repository.clear_telegram(record)
 
-    async def user_by_telegram_id(self, telegram_user_id: int) -> UserSchema:
+    async def user_by_telegram_id(
+        self,
+        telegram_user_id: int,
+        telegram_username: str | None = None,
+    ) -> UserSchema:
         from fastapi import HTTPException, status
 
         record = await self.repository.get_by_telegram_id(telegram_user_id)
@@ -325,5 +354,8 @@ class Service:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Telegram is not linked",
             )
+        await self.repository.refresh_telegram_username(
+            record, telegram_username
+        )
         return UserSchema.model_validate(record)
 

@@ -23,6 +23,8 @@ def duration_to_minutes(duration: str | None) -> int:
     if not duration or not str(duration).strip():
         return 0
     text = str(duration).strip().lower().replace(",", ".")
+    if text.isdigit():
+        return int(text)
     if "мин" in text:
         number = text.replace("мин", "").strip()
         try:
@@ -45,10 +47,14 @@ class Infrastructure(Repository):
         super().__init__(session)
 
     async def get_cached_user(self, user: UserSchema) -> Optional[Users]:
-        user_cache = self.session.info.get("user_cache", {})
-        cached_user: Users = user_cache.get(user.id)
-
-        return cached_user
+        user_cache = self.session.info.setdefault("user_cache", {})
+        cached_user: Users | None = user_cache.get(user.id)
+        if cached_user is not None:
+            return cached_user
+        record = await self.session.get(Users, user.id)
+        if record is not None:
+            user_cache[user.id] = record
+        return record
 
     async def get_user_with_oauth(self, user_id) -> Optional[Users]:
         query = (
@@ -140,9 +146,11 @@ class Infrastructure(Repository):
         )
 
         if user:
-            # Достаем пользователя из словаря сессии
             cached_user = await self.get_cached_user(user)
-            object.owner = cached_user
+            if cached_user is not None:
+                object.owner = cached_user
+            else:
+                object.owner_id = user.id
             object.anyone_can_edit = (
                 bool(meeting.anyone_can_edit)
                 if meeting.anyone_can_edit is not None
@@ -388,6 +396,7 @@ class Infrastructure(Repository):
             )
 
         meeting.final_slot = slots
+        meeting.final_remind_sent = []
         self.session.add(meeting)
         await self.session.flush()
         return meeting
@@ -437,29 +446,6 @@ class Infrastructure(Repository):
         for meeting in owned.scalars().all():
             items[str(meeting.id)] = self._to_meeting_item(meeting, "owner")
 
-        participated = await self.session.execute(
-            select(Meetings)
-            .options(selectinload(Meetings.team))
-            .join(
-                MeetingsUsers, MeetingsUsers.meeting_id == Meetings.id
-            )
-            .where(MeetingsUsers.user_id == uid)
-        )
-        for meeting in participated.scalars().all():
-            key = str(meeting.id)
-            if key not in items:
-                items[key] = self._to_meeting_item(meeting, "participant")
-
-        observed = await self.session.execute(
-            select(Meetings)
-            .options(selectinload(Meetings.team))
-            .where(Meetings.observers.contains([{"user_id": uid_str}]))
-        )
-        for meeting in observed.scalars().all():
-            key = str(meeting.id)
-            if key not in items:
-                items[key] = self._to_meeting_item(meeting, "observer")
-
         invited = await self.session.execute(
             select(Meetings)
             .options(selectinload(Meetings.team))
@@ -493,6 +479,29 @@ class Infrastructure(Repository):
                 key = str(meeting.id)
                 if key not in items:
                     items[key] = self._to_meeting_item(meeting, "invited")
+
+        observed = await self.session.execute(
+            select(Meetings)
+            .options(selectinload(Meetings.team))
+            .where(Meetings.observers.contains([{"user_id": uid_str}]))
+        )
+        for meeting in observed.scalars().all():
+            key = str(meeting.id)
+            if key not in items:
+                items[key] = self._to_meeting_item(meeting, "observer")
+
+        participated = await self.session.execute(
+            select(Meetings)
+            .options(selectinload(Meetings.team))
+            .join(
+                MeetingsUsers, MeetingsUsers.meeting_id == Meetings.id
+            )
+            .where(MeetingsUsers.user_id == uid)
+        )
+        for meeting in participated.scalars().all():
+            key = str(meeting.id)
+            if key not in items:
+                items[key] = self._to_meeting_item(meeting, "participant")
 
         return list(items.values())
 

@@ -21,6 +21,14 @@ from backend.src.schemas import ErrorResponse
 from backend.src.dependencies import get_async_session, get_s3_client
 from backend.src.auth.dependencies import get_required_active_user
 from backend.src.users.schemas import (
+    BotMeetCreateIn,
+    BotMeetFinalIn,
+    BotMeetFromTemplateIn,
+    BotMeetFromTemplateOut,
+    BotContextOut,
+    BotMeetPushIn,
+    BotMeetPushOut,
+    BotMeetStatusOut,
     CalendarEventCreate,
     CalendarEventItem,
     CalendarMonthResponse,
@@ -33,7 +41,7 @@ from backend.src.users.schemas import (
     UserSettingsUpdate,
 )
 from backend.src.users.services import Service as UsersService
-from backend.src.meetings.schemas import UserMeetingItem
+from backend.src.meetings.schemas import MeetCreate, MeetResponse, UserMeetingItem
 from backend.src.meetings.services import Service as MeetingsService
 
 
@@ -292,3 +300,142 @@ async def bot_telegram_meetings(
     user = await users.user_by_telegram_id(telegram_user_id)
     meetings = MeetingsService(session)
     return await meetings.list_user_meetings(user)
+
+
+@bot_router.post(
+    "/telegram/meet/create",
+    response_model=MeetResponse,
+    summary="Создать встречу от привязанного Telegram",
+)
+async def bot_create_meeting(
+    payload: BotMeetCreateIn,
+    session: AsyncSession = Depends(get_async_session),
+    _: None = Depends(require_bot_secret),
+):
+    users = UsersService(session)
+    user = await users.user_by_telegram_id(payload.telegram_user_id)
+    meeting = MeetCreate(
+        name=payload.name,
+        data_range=payload.data_range,
+        description=payload.description,
+        duration=payload.duration,
+        link=payload.link,
+    )
+    meetings = MeetingsService(session)
+    return await meetings.create_meeting(meeting, user)
+
+
+@bot_router.post(
+    "/telegram/meet/push",
+    response_model=BotMeetPushOut,
+    summary="Пуш организатора участникам с Telegram",
+)
+async def bot_push_meeting(
+    payload: BotMeetPushIn,
+    session: AsyncSession = Depends(get_async_session),
+    _: None = Depends(require_bot_secret),
+):
+    users = UsersService(session)
+    user = await users.user_by_telegram_id(payload.telegram_user_id)
+    meetings = MeetingsService(session)
+    return await meetings.push_telegram(
+        payload.hash,
+        user,
+        payload.note,
+        only_pending=payload.only_pending,
+    )
+
+
+@bot_router.get(
+    "/telegram/meet/{meet_hash}",
+    response_model=BotMeetStatusOut,
+    summary="Карточка встречи для бота",
+)
+async def bot_meeting_status(
+    meet_hash: UUID,
+    telegram_user_id: int = Query(...),
+    session: AsyncSession = Depends(get_async_session),
+    _: None = Depends(require_bot_secret),
+):
+    users = UsersService(session)
+    user = await users.user_by_telegram_id(telegram_user_id)
+    meetings = MeetingsService(session)
+    return await meetings.bot_status(meet_hash, user)
+
+
+@bot_router.post(
+    "/telegram/meet/final",
+    response_model=MeetResponse,
+    summary="Назначить итог из бота",
+)
+async def bot_set_final(
+    payload: BotMeetFinalIn,
+    session: AsyncSession = Depends(get_async_session),
+    _: None = Depends(require_bot_secret),
+):
+    users = UsersService(session)
+    user = await users.user_by_telegram_id(payload.telegram_user_id)
+    meetings = MeetingsService(session)
+    return await meetings.bot_set_final(payload.hash, user, payload.slots)
+
+
+@bot_router.get(
+    "/telegram/context",
+    response_model=BotContextOut,
+    summary="Шаблоны и команды для бота",
+)
+async def bot_telegram_context(
+    telegram_user_id: int = Query(...),
+    telegram_username: str | None = Query(None),
+    session: AsyncSession = Depends(get_async_session),
+    _: None = Depends(require_bot_secret),
+):
+    users = UsersService(session)
+    user = await users.user_by_telegram_id(
+        telegram_user_id, telegram_username
+    )
+    from backend.src.teams.services import Service as TeamService
+
+    teams = await TeamService(session).list_teams(user)
+    return {
+        "timezone": user.timezone,
+        "templates": user.bot_templates or [],
+        "teams": [
+            {"id": item.id, "slug": item.slug, "name": item.name}
+            for item in teams
+            if item.slug
+        ],
+    }
+
+
+@bot_router.post(
+    "/telegram/meet/from-template",
+    response_model=BotMeetFromTemplateOut,
+    summary="Создать встречу из шаблона бота",
+)
+async def bot_meet_from_template(
+    payload: BotMeetFromTemplateIn,
+    session: AsyncSession = Depends(get_async_session),
+    _: None = Depends(require_bot_secret),
+):
+    users = UsersService(session)
+    user = await users.user_by_telegram_id(
+        payload.telegram_user_id, payload.telegram_username
+    )
+    meetings = MeetingsService(session)
+    from backend.src.bot_templates.apply import create_from_template
+
+    created, missing = await create_from_template(
+        meetings,
+        user,
+        payload.slug,
+        payload.tokens,
+        [item.model_dump() for item in payload.mentions],
+        payload.note,
+    )
+    return {
+        "hash": created.hash,
+        "name": created.name,
+        "has_final": bool(created.final_slot),
+        "missing": missing,
+    }

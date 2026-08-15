@@ -53,6 +53,22 @@ def team_member_ids(record) -> set[str]:
     return ids
 
 
+def voted_user_ids(record) -> set[str]:
+    return {
+        str(item.get("user_id"))
+        for item in (getattr(record, "slots", None) or [])
+        if isinstance(item, dict) and item.get("user_id")
+    }
+
+
+def expected_voter_ids(record) -> set[str]:
+    ids = invited_user_ids(record) | team_member_ids(record)
+    ids -= observer_user_ids(record)
+    if getattr(record, "owner_id", None):
+        ids.discard(str(record.owner_id))
+    return ids
+
+
 def is_added_to_meeting(record, user: UserSchema | None) -> bool:
     if user is None:
         return False
@@ -133,7 +149,7 @@ def observer_user_ids(record) -> set[str]:
     return {
         str(item.get("user_id"))
         for item in (getattr(record, "observers", None) or [])
-        if item.get("user_id")
+        if isinstance(item, dict) and item.get("user_id")
     }
 
 

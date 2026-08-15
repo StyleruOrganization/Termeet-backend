@@ -1,3 +1,4 @@
+from html import escape
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -21,6 +22,7 @@ from backend.src.notifications.meet_emails import (
     notify_final_time,
     notify_owner_participant_voted,
 )
+from backend.src.notifications.telegram import send_telegram_message
 from backend.src.users.models import Users
 from backend.src.users.schemas import UserSchema
 from backend.src.meetings.infrastructure import Infrastructure
@@ -32,14 +34,19 @@ from backend.src.meetings.permissions import (
     can_set_final,
     can_view_meeting,
     can_vote,
+    expected_voter_ids,
     has_final_slot,
     has_user_slots,
+    invited_user_ids,
     is_owner,
     lock_vote_after_deadline,
     observer_user_ids,
+    team_member_ids,
     organizer_slot_name,
     vote_deadline_passed,
+    voted_user_ids,
 )
+from backend.src.meetings.suggest_final import suggest_windows
 from backend.src.meetings.schemas import (
     CalendarConflict,
     CalendarSyncInfo,
@@ -288,6 +295,10 @@ class Service:
         elif not meeting.team_id:
             meeting.invite_only_vote = False
         record: Meetings = await self.repository.create_meeting(meeting, user)
+        await self._notify_invited_telegram(
+            record,
+            {str(item) for item in (record.invited_user_ids or []) if item},
+        )
         return self._to_response(record, user)
 
     async def _notify_owner_vote(
@@ -305,13 +316,23 @@ class Service:
             owner = await self.repository.session.get(Users, record.owner_id)
         if owner is None:
             return
-        await notify_owner_participant_voted(
-            owner.email,
-            getattr(owner, "notify_on_vote", True),
-            record.name,
-            record.id,
-            participant_name,
-        )
+        if not getattr(owner, "notify_on_vote", True):
+            return
+        href = meet_url(record.id)
+        if getattr(owner, "notify_email", True):
+            await notify_owner_participant_voted(
+                owner.email,
+                True,
+                record.name,
+                record.id,
+                participant_name,
+            )
+        if getattr(owner, "notify_telegram", True):
+            await send_telegram_message(
+                getattr(owner, "telegram_user_id", None),
+                f"На встрече «{record.name}» время отметил: "
+                f"{participant_name}\n{href}",
+            )
 
     async def edit_meeting(
         self, hash: UUID, meeting: MeetCreate, user: UserSchema | None
@@ -325,8 +346,15 @@ class Service:
                 detail="You do not have permission to edit this meeting",
             )
 
+        old_invited = {
+            str(item) for item in (record.invited_user_ids or []) if item
+        }
         await self.repository.edit_meeting(record, meeting)
         await self.notify_live(hash)
+        new_invited = {
+            str(item) for item in (record.invited_user_ids or []) if item
+        }
+        await self._notify_invited_telegram(record, new_invited - old_invited)
         return {"detail": "Meeting edited successfully"}
 
     async def update_settings(
@@ -422,9 +450,12 @@ class Service:
                 detail="A slot with this name already exists for this meeting",
             )
 
+        before_all = self._all_expected_voted(record)
         await self.repository.add_slots(slots.name, slots.slots, record, user)
         await self.notify_live(hash)
         await self._notify_owner_vote(record, slots.name, user)
+        if not before_all and self._all_expected_voted(record):
+            await self._notify_owner_all_voted(record)
         return {"detail": "Slots added successfully"}
 
     async def edit_slots(
@@ -663,10 +694,24 @@ class Service:
 
         emails: list[str] = []
         if record.owner and getattr(record.owner, "notify_on_final", True):
-            emails.append(record.owner.email)
+            if getattr(record.owner, "notify_email", True):
+                emails.append(record.owner.email)
+            if getattr(record.owner, "notify_telegram", True):
+                await send_telegram_message(
+                    getattr(record.owner, "telegram_user_id", None),
+                    f"Назначили время встречи «{record.name}»\n"
+                    f"{meet_url(record.id)}",
+                )
         for participant in record.participants or []:
             if getattr(participant, "notify_on_final", True):
-                emails.append(participant.email)
+                if getattr(participant, "notify_email", True):
+                    emails.append(participant.email)
+                if getattr(participant, "notify_telegram", True):
+                    await send_telegram_message(
+                        getattr(participant, "telegram_user_id", None),
+                        f"Назначили время встречи «{record.name}»\n"
+                        f"{meet_url(record.id)}",
+                    )
         for extra in record.emails or []:
             emails.append(extra)
         await notify_final_time(
@@ -715,3 +760,219 @@ class Service:
         await self.repository.delete_slots_of_user(record, username, user)
         await self.notify_live(hash)
         return {"detail": "Slots deleted successfully"}
+
+    def _telegram_push_ids(self, record: "Meetings") -> set[str]:
+        ids: set[str] = set()
+        for person in record.participants or []:
+            ids.add(str(person.id))
+        for slot in record.slots or []:
+            if isinstance(slot, dict) and slot.get("user_id"):
+                ids.add(str(slot["user_id"]))
+        ids |= invited_user_ids(record)
+        ids |= team_member_ids(record)
+        if record.owner_id:
+            ids.discard(str(record.owner_id))
+        ids -= observer_user_ids(record)
+        return ids
+
+    async def push_telegram(
+        self,
+        hash: UUID,
+        user: UserSchema,
+        note: str | None,
+        only_pending: bool = False,
+    ) -> dict:
+        from backend.src.config import config
+
+        if not (config.telegram_bot.TOKEN or "").strip():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Telegram bot token is not configured",
+            )
+        record: Meetings = await self.repository.get_meeting_with_participants(
+            hash
+        )
+        if not is_owner(record, user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the organizer can push this meeting",
+            )
+        recipient_ids = self._telegram_push_ids(record)
+        pending_empty = False
+        if only_pending:
+            expected = expected_voter_ids(record)
+            pending = expected - voted_user_ids(record)
+            if not expected:
+                pending_empty = True
+                recipient_ids = set()
+            else:
+                recipient_ids &= pending
+        people = await self.repository.list_users_by_ids(list(recipient_ids))
+        title = escape(record.name or "Встреча")
+        href = meet_url(record.id)
+        extra = (note or "").strip()
+        if extra:
+            body = (
+                f"Организатор по встрече «{title}»:\n\n"
+                f"{escape(extra)}\n\n{href}"
+            )
+        elif only_pending:
+            body = (
+                f"Организатор ждёт, когда вы отметите время "
+                f"на встрече «{title}».\n{href}"
+            )
+        else:
+            body = (
+                f"Организатор просит отметить время "
+                f"на встрече «{title}».\n{href}"
+            )
+        sent = 0
+        muted = 0
+        no_telegram = 0
+        for person in people:
+            if not getattr(person, "telegram_user_id", None):
+                no_telegram += 1
+                continue
+            if not getattr(person, "notify_telegram", True):
+                muted += 1
+                continue
+            ok = await send_telegram_message(person.telegram_user_id, body)
+            if ok:
+                sent += 1
+        return {
+            "sent": sent,
+            "muted": muted,
+            "no_telegram": no_telegram,
+            "name": record.name,
+            "pending_empty": pending_empty,
+        }
+
+    def _all_expected_voted(self, record: "Meetings") -> bool:
+        expected = expected_voter_ids(record)
+        if not expected:
+            return False
+        return expected <= voted_user_ids(record)
+
+    async def _notify_owner_all_voted(self, record: "Meetings") -> None:
+        owner = record.owner
+        if owner is None and record.owner_id:
+            owner = await self.repository.session.get(Users, record.owner_id)
+        if owner is None:
+            return
+        if not getattr(owner, "notify_telegram", True):
+            return
+        href = meet_url(record.id)
+        title = escape(record.name or "Встреча")
+        await send_telegram_message(
+            getattr(owner, "telegram_user_id", None),
+            f"На встрече «{title}» все из списка отметили время. "
+            f"Можно назначить итог в боте или на сайте.\n{href}",
+        )
+
+    async def _notify_invited_telegram(
+        self, record: "Meetings", user_ids: set[str]
+    ) -> None:
+        if not user_ids:
+            return
+        people = await self.repository.list_users_by_ids(list(user_ids))
+        href = meet_url(record.id)
+        title = escape(record.name or "Встреча")
+        for person in people:
+            if not getattr(person, "notify_telegram", True):
+                continue
+            await send_telegram_message(
+                getattr(person, "telegram_user_id", None),
+                f"Вас пригласили на встречу «{title}». "
+                f"Отметьте удобное время:\n{href}",
+            )
+
+    async def bot_status(
+        self, hash: UUID, user: UserSchema
+    ) -> dict:
+        record: Meetings = await self.repository.get_meeting_with_participants(
+            hash
+        )
+        if not is_owner(record, user) and not any(
+            str(slot.get("user_id")) == str(user.id)
+            for slot in (record.slots or [])
+            if isinstance(slot, dict)
+        ):
+            if str(user.id) not in invited_user_ids(
+                record
+            ) and str(user.id) not in team_member_ids(record):
+                if str(user.id) not in observer_user_ids(record):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="You cannot see this meeting",
+                    )
+        owner = is_owner(record, user)
+        voted_names = [
+            str(slot.get("name"))
+            for slot in (record.slots or [])
+            if isinstance(slot, dict) and slot.get("name")
+        ]
+        guest_count = sum(
+            1
+            for slot in (record.slots or [])
+            if isinstance(slot, dict)
+            and slot.get("name")
+            and not slot.get("user_id")
+        )
+        pending_people: list[dict] = []
+        expected_count = 0
+        if owner:
+            expected = expected_voter_ids(record)
+            expected_count = len(expected)
+            pending_ids = expected - voted_user_ids(record)
+            pending_users = await self.repository.list_users_by_ids(
+                list(pending_ids)
+            )
+            pending_people = [
+                {
+                    "name": f"{item.first_name} {item.last_name}".strip()
+                    or "Участник",
+                    "has_telegram": bool(
+                        getattr(item, "telegram_user_id", None)
+                    ),
+                }
+                for item in pending_users
+            ]
+        final_label = None
+        if record.final_slot:
+            span = self._final_span(record.final_slot)
+            if span:
+                final_label = format_range(span[0], span[1])
+        suggestions = []
+        if owner and not has_final_slot(record):
+            suggestions = suggest_windows(
+                record.slots, record.duration, limit=3
+            )
+        has_final = has_final_slot(record)
+        return {
+            "hash": record.id,
+            "name": record.name,
+            "is_owner": owner,
+            "has_final": has_final,
+            "final_label": final_label,
+            "voted": voted_names,
+            "pending": pending_people,
+            "guest_count": guest_count,
+            "expected_count": expected_count,
+            "can_nudge": owner and not has_final and bool(pending_people),
+            "can_set_final": owner and not has_final and bool(suggestions),
+            "suggestions": suggestions,
+        }
+
+    async def bot_set_final(
+        self, hash: UUID, user: UserSchema, slots: list
+    ) -> MeetResponse:
+        record: Meetings = await self.repository.get_meeting(hash)
+        if not is_owner(record, user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the organizer can set final time",
+            )
+        return await self.set_final(
+            hash, MeetFinalUpdate(slots=slots), user
+        )
+

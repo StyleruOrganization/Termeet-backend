@@ -271,6 +271,11 @@ class Service:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User with this email not found",
             )
+        if not user.password_hash:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Смена пароля недоступна для аккаунтов, вошедших через Яндекс",
+            )
 
         jwt_payload = {
             "sub": str(user.id),
@@ -320,8 +325,14 @@ class Service:
         )
 
     async def set_new_password(self, user: UserSchema, password: Password):
-        password = password.password
-        password_hash = await hash_password(password)
+        db_user = await self.repository.get_user_by_id(user.id)
+        if not db_user or not db_user.password_hash:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Смена пароля недоступна для аккаунтов, вошедших через Яндекс",
+            )
+        password_value = password.password
+        password_hash = await hash_password(password_value)
         await self.repository.set_new_password(user, password_hash)
 
         return user

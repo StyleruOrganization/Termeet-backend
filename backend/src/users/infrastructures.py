@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 
 from sqlalchemy.orm import selectinload
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import delete, func, or_, select, update
 
 from backend.src.auth.models import OAuthAccount
 from backend.src.feedback.models import Feedback
@@ -59,10 +59,16 @@ class Infrastructure(Repository):
                 else item.model_dump()
                 for item in template
             ]
+        if "bot_templates" in data:
+            record.bot_templates = data["bot_templates"] or []
         if "notify_on_vote" in data and data["notify_on_vote"] is not None:
             record.notify_on_vote = data["notify_on_vote"]
         if "notify_on_final" in data and data["notify_on_final"] is not None:
             record.notify_on_final = data["notify_on_final"]
+        if "notify_email" in data and data["notify_email"] is not None:
+            record.notify_email = data["notify_email"]
+        if "notify_telegram" in data and data["notify_telegram"] is not None:
+            record.notify_telegram = data["notify_telegram"]
         if "show_onboarding" in data and data["show_onboarding"] is not None:
             record.show_onboarding = data["show_onboarding"]
         if "contact_email" in data:
@@ -216,6 +222,41 @@ class Infrastructure(Repository):
             .where(Users.telegram_user_id == telegram_user_id)
         )
         return result.scalar_one_or_none()
+
+    async def list_by_telegram_ids(self, ids: list[int]) -> list[Users]:
+        if not ids:
+            return []
+        result = await self.session.execute(
+            select(Users).where(
+                Users.telegram_user_id.in_(ids), Users.is_active.is_(True)
+            )
+        )
+        return list(result.scalars().all())
+
+    async def list_by_telegram_usernames(
+        self, names: list[str]
+    ) -> list[Users]:
+        clean = [item.lstrip("@").lower() for item in names if item]
+        if not clean:
+            return []
+        result = await self.session.execute(
+            select(Users).where(
+                func.lower(Users.telegram_username).in_(clean),
+                Users.is_active.is_(True),
+            )
+        )
+        return list(result.scalars().all())
+
+    async def refresh_telegram_username(
+        self, record: Users, username: str | None
+    ) -> None:
+        nick = (username or "").lstrip("@").strip()[:32] or None
+        if not nick:
+            return
+        if (record.telegram_username or "").lower() == nick.lower():
+            return
+        record.telegram_username = nick
+        self.session.add(record)
 
     async def bind_telegram(
         self,

@@ -86,6 +86,9 @@ class Meetings(Base):
     remind_sent: Mapped[list] = mapped_column(
         JSONB, default=lambda: [], server_default="[]", nullable=False
     )
+    final_remind_sent: Mapped[list] = mapped_column(
+        JSONB, default=lambda: [], server_default="[]", nullable=False
+    )
     lock_vote_after_deadline: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
     )

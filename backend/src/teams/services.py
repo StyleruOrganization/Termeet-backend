@@ -1,7 +1,10 @@
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
+
 from fastapi import HTTPException, UploadFile, status
 
+from backend.src.bot_templates.schema import normalize_token, template_tokens
 from backend.src.storage.photos import (
     delete_photo,
     load_photo,
@@ -36,6 +39,7 @@ def to_response(record: Teams, current_id: UUID) -> TeamResponse:
     return TeamResponse(
         id=record.id,
         name=record.name,
+        slug=record.slug,
         description=record.description or "",
         has_photo=bool(record.photo_key),
         is_owner=str(record.user_id) == str(current_id),
@@ -68,6 +72,25 @@ class Service:
             return True
         return any(str(member.id) == str(user.id) for member in record.members)
 
+    async def _assert_slug_free(
+        self, slug: str, user: UserSchema, team_id: int | None
+    ) -> None:
+        existing = await self.repository.get_by_slug(slug)
+        if existing is not None and existing.id != team_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Команда с таким slug уже есть",
+            )
+        tokens = template_tokens(getattr(user, "bot_templates", None))
+        if normalize_token(slug) in tokens:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Slug «{slug}» совпадает с ключом или алиасом "
+                    "шаблона бота"
+                ),
+            )
+
     async def _resolve_members(
         self, owner_id: UUID, member_ids: list[UUID]
     ) -> list[Users]:
@@ -99,7 +122,15 @@ class Service:
     ) -> TeamResponse:
         owner = await self._owner_record(user)
         members = await self._resolve_members(owner.id, payload.member_ids)
-        record = await self.repository.create_team(owner, payload, members)
+        await self._assert_slug_free(payload.slug, user, None)
+        try:
+            record = await self.repository.create_team(owner, payload, members)
+        except IntegrityError:
+            await self.repository.session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Команда с таким slug уже есть",
+            )
         return to_response(record, user.id)
 
     async def update_team(
@@ -108,7 +139,15 @@ class Service:
         record = await self.repository.get_team(team_id)
         self._require_owner(record, user)
         members = await self._resolve_members(user.id, payload.member_ids)
-        updated = await self.repository.update_team(record, payload, members)
+        await self._assert_slug_free(payload.slug, user, record.id)
+        try:
+            updated = await self.repository.update_team(record, payload, members)
+        except IntegrityError:
+            await self.repository.session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Команда с таким slug уже есть",
+            )
         return to_response(updated, user.id)
 
     async def delete_team(self, team_id: int, user: UserSchema) -> None:

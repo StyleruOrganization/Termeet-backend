@@ -108,6 +108,7 @@ class TelegramBotConfig(ConfigBase):
 
     USERNAME: str = ""
     SECRET: str = ""
+    TOKEN: str = ""
 
 
 class Config(BaseSettings):

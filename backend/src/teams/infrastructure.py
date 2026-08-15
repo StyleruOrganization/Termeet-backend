@@ -46,6 +46,12 @@ class Infrastructure(Repository):
             )
         return record
 
+    async def get_by_slug(self, slug: str) -> Teams | None:
+        result = await self.session.execute(
+            self._query().where(Teams.slug == slug)
+        )
+        return result.scalar_one_or_none()
+
     async def users_by_ids(self, ids: list[UUID]) -> list[Users]:
         if not ids:
             return []
@@ -59,6 +65,7 @@ class Infrastructure(Repository):
     ) -> Teams:
         record = Teams(
             name=payload.name,
+            slug=payload.slug,
             description=payload.description or "",
             user_id=owner.id,
         )
@@ -71,6 +78,7 @@ class Infrastructure(Repository):
         self, record: Teams, payload: TeamUpdate, members: list[Users]
     ) -> Teams:
         record.name = payload.name
+        record.slug = payload.slug
         record.description = payload.description or ""
         record.members = members
         self.session.add(record)

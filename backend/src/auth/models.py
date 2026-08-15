@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 
@@ -27,7 +27,7 @@ class OAuthAccount(Base):
     provider: Mapped[str] = mapped_column(
         PgEnum(OAuthEnum, name="oauth_enum", create_type=False), nullable=False
     )
-    provider_user_id: Mapped[int] = mapped_column(nullable=False)
+    provider_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     user: Mapped["Users"] = relationship(back_populates="oauth_accounts")

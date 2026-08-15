@@ -27,18 +27,6 @@ router = APIRouter(prefix="/meet", tags=["Meet"])
 
 
 @router.get(
-    "/test-crash/error",
-    summary="Имитация 500 ошибки бэкенда для проверки алертинга",
-    status_code=500,
-)
-async def trigger_backend_500_error():
-    raise HTTPException(
-        status_code=500,
-        detail="Внутренняя ошибка сервиса встреч (DB connection pool timeout)",
-    )
-
-
-@router.get(
     "/{hash}",
     response_model=MeetResponse,
     summary="Получить всю информацию о встрече",

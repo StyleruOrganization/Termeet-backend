@@ -126,19 +126,6 @@ async def receive_telemetry(
     return {"status": "ok"}
 
 
-@router.get(
-    "/telemetry/test-error",
-    summary="Тестовый endpoint для проверки 500 ошибки и алертинга",
-    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-)
-async def trigger_test_500_error() -> Dict[str, str]:
-    """Эндпоинт для проверки реакции алертов на 5xx ошибки"""
-    raise HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail="Тестовая 500 ошибка для проверки Prometheus BackendHigh5xxRate",
-    )
-
-
 @router.post(
     "/telemetry/alerts/webhook",
     summary="Webhook от Alertmanager для отправки в RabbitMQ alerts_queue",

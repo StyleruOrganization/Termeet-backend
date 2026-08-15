@@ -104,11 +104,10 @@ services:
       LETSENCRYPT_EMAIL: maklakov.daniils@yandex.ru
 
   prometheus:
-    image: prom/prometheus:v3.2.1
+    image: cr.yandex/${CONTAINER_REGISTRY}/prometheus
     container_name: prometheus-prod
     volumes:
       - prometheus_data:/prometheus
-      - ./prometheus_data/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.retention.time=15d'
@@ -117,7 +116,7 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:11.6.0
+    image: cr.yandex/${CONTAINER_REGISTRY}/grafana
     container_name: grafana-prod
     env_file:
       - .env
@@ -131,9 +130,6 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "false"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana_data/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
-      - ./grafana_data/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
-      - ./grafana_data/dashboards:/etc/grafana/provisioning/dashboards/json:ro
     networks:
       - backend-net
       - nginx-proxy

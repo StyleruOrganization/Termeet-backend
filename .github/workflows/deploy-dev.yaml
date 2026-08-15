@@ -39,40 +39,28 @@ jobs:
             --username oauth \
             --password-stdin cr.yandex
 
-      - name: Build and push Docker image
-
+      - name: Build and push Docker images
         run: |
-          docker build -f Dockerfile.dev \
-            -t cr.yandex/${{ secrets.CONTAINER_REGISTRY }}/backend-dev .
+          REGISTRY=cr.yandex/${{ secrets.CONTAINER_REGISTRY }}
 
-          docker push cr.yandex/${{ secrets.CONTAINER_REGISTRY }}/backend-dev
+          docker build -f Dockerfile.dev -t $REGISTRY/backend-dev .
+          docker build -f Dockerfile.grafana -t $REGISTRY/grafana .
+          docker build -f Dockerfile.prometheus -t $REGISTRY/prometheus .
 
-      - name: Remove stub dirs Docker created instead of config files
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            mkdir -p backend-dev
-            cd backend-dev
-            docker stop grafana-dev prometheus-dev 2>/dev/null || true
-            # Bind-mounts Docker создаёт от root; rm от CI-юзера не проходит.
-            docker run --rm -v "$(pwd):/work" alpine sh -c \
-              'rm -rf /work/grafana_data /work/prometheus_data'
+          docker push $REGISTRY/backend-dev
+          docker push $REGISTRY/grafana
+          docker push $REGISTRY/prometheus
 
-      - name: Copy compose and monitoring configs to server
+      - name: Copy docker-compose to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "docker-compose-dev.yml,grafana_data,prometheus_data"
+          source: "docker-compose-dev.yml"
           target: "backend-dev"
-          overwrite: true
 
       - name: Deploy to server
-
         uses: appleboy/ssh-action@v1.0.0
         env:
           REGISTRY: cr.yandex/${{ secrets.CONTAINER_REGISTRY }}
@@ -99,5 +87,4 @@ jobs:
             else
               echo "Обновляю только backend-dev"
               docker compose -f docker-compose-dev.yml up -d --pull always --no-deps backend
-              docker compose -f docker-compose-dev.yml up -d grafana prometheus
             fi

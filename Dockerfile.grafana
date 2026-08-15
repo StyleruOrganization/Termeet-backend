@@ -1,0 +1,5 @@
+FROM grafana/grafana:11.6.0
+
+COPY grafana_data/datasources.yml /etc/grafana/provisioning/datasources/datasources.yml
+COPY grafana_data/dashboards.yml /etc/grafana/provisioning/dashboards/dashboards.yml
+COPY grafana_data/dashboards /etc/grafana/provisioning/dashboards/json

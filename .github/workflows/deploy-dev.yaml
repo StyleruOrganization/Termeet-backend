@@ -47,14 +47,32 @@ jobs:
 
           docker push cr.yandex/${{ secrets.CONTAINER_REGISTRY }}/backend-dev
 
-      - name: Copy docker-compose to server
+      - name: Remove stub dirs Docker created instead of config files
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            mkdir -p backend-dev/grafana_data backend-dev/prometheus_data
+            cd backend-dev
+            for f in grafana_data/dashboards.yml grafana_data/datasources.yml prometheus_data/prometheus.yml; do
+              if [ -d "$f" ]; then
+                echo "Removing stub directory $f"
+                docker stop grafana-dev 2>/dev/null || true
+                rm -rf "$f"
+              fi
+            done
+
+      - name: Copy compose and monitoring configs to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "docker-compose-dev.yml"
+          source: "docker-compose-dev.yml,grafana_data,prometheus_data"
           target: "backend-dev"
+          overwrite: true
 
       - name: Deploy to server
 

@@ -1,8 +1,17 @@
+from datetime import datetime
 from uuid import uuid4, UUID
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Boolean, Computed, LargeBinary, String, ARRAY, ForeignKey
+from sqlalchemy import (
+    ARRAY,
+    BigInteger,
+    Boolean,
+    Computed,
+    DateTime,
+    LargeBinary,
+    String,
+)
 from sqlalchemy.dialects.postgresql.json import JSONB
 
 from backend.src.models import Base
@@ -76,6 +85,16 @@ class Users(Base):
     contact_email: Mapped[Optional[str]] = mapped_column(String(256))
     contact_telegram: Mapped[Optional[str]] = mapped_column(String(128))
     contact_vk: Mapped[Optional[str]] = mapped_column(String(256))
+    telegram_user_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, unique=True, nullable=True
+    )
+    telegram_username: Mapped[Optional[str]] = mapped_column(String(64))
+    telegram_link_token: Mapped[Optional[str]] = mapped_column(
+        String(64), unique=True, nullable=True
+    )
+    telegram_link_expires: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True)
+    )
 
     oauth_accounts: Mapped[Optional[list["OAuthAccount"]]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

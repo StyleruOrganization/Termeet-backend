@@ -1,10 +1,22 @@
 from uuid import UUID
+import hmac
 
-from fastapi import APIRouter, Depends, File, Query, Response, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Header,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from types_aiobotocore_s3.client import S3Client
+from starlette import status
 
 from backend.src.auth.utils import REFRESH_TOKEN_COOKIE
+from backend.src.config import config
 from backend.src.schemas import ErrorResponse
 from backend.src.dependencies import get_async_session, get_s3_client
 from backend.src.auth.dependencies import get_required_active_user
@@ -12,6 +24,10 @@ from backend.src.users.schemas import (
     CalendarEventCreate,
     CalendarEventItem,
     CalendarMonthResponse,
+    TelegramConfirmIn,
+    TelegramConfirmOut,
+    TelegramLinkResponse,
+    TelegramUnlinkIn,
     UserSchema,
     UserSearchItem,
     UserSettingsUpdate,
@@ -160,6 +176,32 @@ async def my_meetings(
 
 
 @router.post(
+    "/me/telegram/link",
+    response_model=TelegramLinkResponse,
+    summary="Ссылка, чтобы привязать Telegram к аккаунту",
+)
+async def start_telegram_link(
+    user: UserSchema = Depends(get_required_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = UsersService(session)
+    return await service.start_telegram_link(user)
+
+
+@router.post(
+    "/me/telegram/unlink",
+    response_model=UserSchema,
+    summary="Отвязать Telegram от аккаунта",
+)
+async def unlink_telegram(
+    user: UserSchema = Depends(get_required_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = UsersService(session)
+    return await service.unlink_telegram_for_user(user)
+
+
+@router.post(
     "/me/avatar",
     response_model=UserSchema,
     summary="Загрузить фото профиля",
@@ -185,3 +227,68 @@ async def user_avatar(
 ):
     service = UsersService(session)
     return await service.get_avatar(user_id, s3_client)
+
+
+def require_bot_secret(
+    x_telegram_bot_secret: str | None = Header(default=None),
+):
+    expected = config.telegram_bot.SECRET or ""
+    if not expected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Telegram bot secret is not configured",
+        )
+    given = (x_telegram_bot_secret or "").encode("utf-8")
+    expected_b = expected.encode("utf-8")
+    if not hmac.compare_digest(given, expected_b):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid bot secret",
+        )
+
+
+bot_router = APIRouter(prefix="/bot", tags=["Bot"])
+
+
+@bot_router.post(
+    "/telegram/confirm",
+    response_model=TelegramConfirmOut,
+    summary="Подтвердить привязку Telegram (только бот)",
+)
+async def bot_confirm_telegram(
+    payload: TelegramConfirmIn,
+    session: AsyncSession = Depends(get_async_session),
+    _: None = Depends(require_bot_secret),
+):
+    service = UsersService(session)
+    return await service.confirm_telegram_link(payload)
+
+
+@bot_router.post(
+    "/telegram/unlink",
+    summary="Отвязать Telegram по id (только бот)",
+)
+async def bot_unlink_telegram(
+    payload: TelegramUnlinkIn,
+    session: AsyncSession = Depends(get_async_session),
+    _: None = Depends(require_bot_secret),
+):
+    service = UsersService(session)
+    await service.unlink_telegram_by_id(payload.telegram_user_id)
+    return {"detail": "Telegram unlinked"}
+
+
+@bot_router.get(
+    "/telegram/meetings",
+    response_model=list[UserMeetingItem],
+    summary="Встречи пользователя по Telegram id (только бот)",
+)
+async def bot_telegram_meetings(
+    telegram_user_id: int = Query(...),
+    session: AsyncSession = Depends(get_async_session),
+    _: None = Depends(require_bot_secret),
+):
+    users = UsersService(session)
+    user = await users.user_by_telegram_id(telegram_user_id)
+    meetings = MeetingsService(session)
+    return await meetings.list_user_meetings(user)

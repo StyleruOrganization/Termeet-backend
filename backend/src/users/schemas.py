@@ -101,6 +101,8 @@ class UserSchema(BaseModel):
     contact_email: str | None = None
     contact_telegram: str | None = None
     contact_vk: str | None = None
+    telegram_linked: bool = False
+    telegram_username: str | None = None
 
     model_config = ConfigDict(from_attributes=True, extra="ignore")
 
@@ -147,6 +149,10 @@ class UserSchema(BaseModel):
             "contact_email": getattr(data, "contact_email", None),
             "contact_telegram": getattr(data, "contact_telegram", None),
             "contact_vk": getattr(data, "contact_vk", None),
+            "telegram_linked": bool(
+                getattr(data, "telegram_user_id", None)
+            ),
+            "telegram_username": getattr(data, "telegram_username", None),
         }
         from backend.src.integrations.yandex_calendar import has_calendar_scope
         from backend.src.integrations.yandex_telemost import (
@@ -250,4 +256,25 @@ class CalendarMonthResponse(BaseModel):
     events: list[CalendarEventItem] = Field(default_factory=list)
     has_calendar: bool = False
     error: str | None = None
+
+
+class TelegramLinkResponse(BaseModel):
+    url: str
+    bot_username: str
+
+
+class TelegramConfirmIn(BaseModel):
+    token: str = Field(min_length=8, max_length=64)
+    telegram_user_id: int
+    telegram_username: str | None = Field(None, max_length=64)
+
+
+class TelegramConfirmOut(BaseModel):
+    ok: bool = True
+    first_name: str
+    already_linked: bool = False
+
+
+class TelegramUnlinkIn(BaseModel):
+    telegram_user_id: int
 

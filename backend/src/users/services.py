@@ -23,6 +23,9 @@ from backend.src.users.schemas import (
     CalendarEventCreate,
     CalendarEventItem,
     CalendarMonthResponse,
+    TelegramConfirmIn,
+    TelegramConfirmOut,
+    TelegramLinkResponse,
     UserSchema,
     UserSearchItem,
     UserSettingsUpdate,
@@ -212,4 +215,115 @@ class Service:
                 detail="Photo not found",
             )
         return await load_photo(s3_client, record.avatar_key)
+
+    async def start_telegram_link(
+        self, user: UserSchema
+    ) -> TelegramLinkResponse:
+        from datetime import datetime, timedelta, timezone
+        import secrets
+
+        from fastapi import HTTPException, status
+
+        from backend.src.config import config
+
+        username = (config.telegram_bot.USERNAME or "").lstrip("@").strip()
+        if not username or not config.telegram_bot.SECRET:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Telegram bot is not configured",
+            )
+        token = secrets.token_urlsafe(24)
+        expires = datetime.now(timezone.utc) + timedelta(minutes=15)
+        await self.repository.set_telegram_link_token(
+            user.id, token, expires
+        )
+        return TelegramLinkResponse(
+            url=f"https://t.me/{username}?start=link_{token}",
+            bot_username=username,
+        )
+
+    async def unlink_telegram_for_user(self, user: UserSchema) -> UserSchema:
+        from fastapi import HTTPException, status
+
+        record = await self.repository.get_with_oauth(user.id)
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+        updated = await self.repository.clear_telegram(record)
+        return UserSchema.model_validate(updated)
+
+    async def confirm_telegram_link(
+        self, payload: TelegramConfirmIn
+    ) -> TelegramConfirmOut:
+        from datetime import datetime, timezone
+
+        from fastapi import HTTPException, status
+
+        token = (payload.token or "").strip()
+        record = await self.repository.get_by_link_token(token)
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired link token",
+            )
+        expires = record.telegram_link_expires
+        if expires is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired link token",
+            )
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if expires < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired link token",
+            )
+
+        already = await self.repository.get_by_telegram_id(
+            payload.telegram_user_id
+        )
+        if already is not None and already.id != record.id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This Telegram is already linked to another account",
+            )
+
+        already_linked = (
+            record.telegram_user_id == payload.telegram_user_id
+        )
+        nick = (payload.telegram_username or "").lstrip("@").strip()
+        nick = nick[:32] or None
+        updated = await self.repository.bind_telegram(
+            record, payload.telegram_user_id, nick
+        )
+        return TelegramConfirmOut(
+            ok=True,
+            first_name=updated.first_name,
+            already_linked=already_linked,
+        )
+
+    async def unlink_telegram_by_id(self, telegram_user_id: int) -> None:
+        from fastapi import HTTPException, status
+
+        record = await self.repository.get_by_telegram_id(telegram_user_id)
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Telegram is not linked",
+            )
+        await self.repository.clear_telegram(record)
+
+    async def user_by_telegram_id(self, telegram_user_id: int) -> UserSchema:
+        from fastapi import HTTPException, status
+
+        record = await self.repository.get_by_telegram_id(telegram_user_id)
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Telegram is not linked",
+            )
+        return UserSchema.model_validate(record)
 

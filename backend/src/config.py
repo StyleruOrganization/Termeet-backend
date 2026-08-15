@@ -103,6 +103,13 @@ class GRPCConfig(ConfigBase):
     PORT: int
 
 
+class TelegramBotConfig(ConfigBase):
+    model_config = SettingsConfigDict(env_prefix="TELEGRAM_BOT_")
+
+    USERNAME: str = ""
+    SECRET: str = ""
+
+
 class Config(BaseSettings):
     prod_db: ProdDatabaseConfig = Field(default_factory=ProdDatabaseConfig)
     yandex_auth: YandexAuthConfig = Field(default_factory=YandexAuthConfig)
@@ -115,6 +122,9 @@ class Config(BaseSettings):
     rabbitmq: RabbitMQConfig = Field(default_factory=RabbitMQConfig)
     s3: S3Config = Field(default_factory=S3Config)
     grpc: GRPCConfig = Field(default_factory=GRPCConfig)
+    telegram_bot: TelegramBotConfig = Field(
+        default_factory=TelegramBotConfig
+    )
 
     @classmethod
     def load(cls) -> "Config":

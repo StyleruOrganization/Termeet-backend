@@ -186,3 +186,66 @@ class Infrastructure(Repository):
 
         await self.session.delete(record)
         await self.session.flush()
+
+    async def set_telegram_link_token(
+        self, user_id, token: str, expires
+    ) -> None:
+        record: Users | None = await self.session.get(Users, user_id)
+        if not record:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+        record.telegram_link_token = token
+        record.telegram_link_expires = expires
+        self.session.add(record)
+        await self.session.flush()
+
+    async def get_by_link_token(self, token: str) -> Users | None:
+        result = await self.session.execute(
+            select(Users)
+            .options(selectinload(Users.oauth_accounts))
+            .where(Users.telegram_link_token == token)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_telegram_id(self, telegram_user_id: int) -> Users | None:
+        result = await self.session.execute(
+            select(Users)
+            .options(selectinload(Users.oauth_accounts))
+            .where(Users.telegram_user_id == telegram_user_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def bind_telegram(
+        self,
+        record: Users,
+        telegram_user_id: int,
+        telegram_username: str | None,
+    ) -> Users:
+        record.telegram_user_id = telegram_user_id
+        record.telegram_username = telegram_username
+        record.telegram_link_token = None
+        record.telegram_link_expires = None
+        self.session.add(record)
+        await self.session.flush()
+        loaded = await self.session.execute(
+            select(Users)
+            .options(selectinload(Users.oauth_accounts))
+            .where(Users.id == record.id)
+        )
+        return loaded.scalar_one()
+
+    async def clear_telegram(self, record: Users) -> Users:
+        record.telegram_user_id = None
+        record.telegram_username = None
+        record.telegram_link_token = None
+        record.telegram_link_expires = None
+        self.session.add(record)
+        await self.session.flush()
+        loaded = await self.session.execute(
+            select(Users)
+            .options(selectinload(Users.oauth_accounts))
+            .where(Users.id == record.id)
+        )
+        return loaded.scalar_one()

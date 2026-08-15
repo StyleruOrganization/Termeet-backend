@@ -67,7 +67,9 @@ async def healthcheck(request: Request) -> Dict[str, Any]:
     summary="Прием клиентской телеметрии (Web Vitals и JS-ошибки)",
     status_code=status.HTTP_200_OK,
 )
-async def receive_telemetry(payload: Dict[str, Any]) -> Dict[str, str]:
+async def receive_telemetry(
+    request: Request, payload: Dict[str, Any]
+) -> Dict[str, str]:
     telemetry_type = payload.get("type", "client_error")
 
     if telemetry_type == "web_vital":
@@ -97,6 +99,27 @@ async def receive_telemetry(payload: Dict[str, Any]) -> Dict[str, str]:
                 err_type,
                 (err.userAgent or "")[:50],
             )
+
+            # Мгновенная отправка детального алерта в Telegram через RabbitMQ без задержек
+            rabbitmq = getattr(request.app.state, "rabbitmq", None)
+            if rabbitmq:
+                alert_payload = {
+                    "source": "frontend_telemetry",
+                    "type": err_type,
+                    "message": err.message,
+                    "stack": err.stack,
+                    "componentStack": err.componentStack,
+                    "pathname": err.pathname or err.href,
+                    "viewport": err.viewport,
+                    "userAgent": err.userAgent,
+                    "userId": err.userId,
+                }
+                msg = aio_pika.Message(
+                    body=json.dumps(alert_payload, ensure_ascii=False).encode(),
+                    content_type="application/json",
+                    delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                )
+                await rabbitmq.publish("alerts_queue", msg)
         except Exception as e:
             logger.debug("Failed to process client_error telemetry: %s", e)
 

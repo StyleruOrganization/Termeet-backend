@@ -311,6 +311,7 @@ class Infrastructure(Repository):
             role=role,
             data_range=meeting.data_range or [],
             has_final=bool(meeting.final_slot),
+            final_slot=meeting.final_slot or None,
             participant_names=names,
             participant_count=len(names),
         )

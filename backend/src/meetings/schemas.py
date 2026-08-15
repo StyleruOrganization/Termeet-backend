@@ -101,6 +101,9 @@ class UserMeetingItem(BaseModel):
     role: Literal["owner", "participant", "observer", "invited"]
     data_range: list[list[str]] = Field(serialization_alias="dataRange")
     has_final: bool = Field(False, serialization_alias="hasFinal")
+    final_slot: list[list[str]] | None = Field(
+        None, serialization_alias="finalSlot"
+    )
     participant_names: list[str] = Field(
         default_factory=list, serialization_alias="participantNames"
     )

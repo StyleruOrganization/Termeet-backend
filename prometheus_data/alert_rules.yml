@@ -2,122 +2,122 @@ groups:
   - name: termeet_infrastructure_alerts
     rules:
       - alert: HostDiskRunningOut
-        expr: (node_filesystem_avail_bytes{mountpoint="/host/rootfs"} / node_filesystem_size_bytes{mountpoint="/host/rootfs"}) * 100 < 15
-        for: 5m
+        expr: (node_filesystem_avail_bytes{mountpoint="/host/rootfs"} / node_filesystem_size_bytes{mountpoint="/host/rootfs"}) * 100 < 20
+        for: 2m
         labels:
           severity: critical
         annotations:
-          summary: "🔥 Критично мало места на диске (< 15%)"
-          description: "На сервере осталось менее 15% свободного места на корневом диске (доступно {{ $value | printf \"%.1f\" }}%)."
+          summary: "🔥 Мало места на диске (< 20%)"
+          description: "На сервере осталось менее 20% свободного места на корневом диске (доступно {{ $value | printf \"%.1f\" }}%)."
 
       - alert: HostHighCpuLoad
-        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
-        for: 5m
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 80
+        for: 2m
         labels:
           severity: warning
         annotations:
-          summary: "⚠️ Высокая загрузка CPU (> 90%)"
-          description: "Средняя загрузка процессора сервера превышает 90% на протяжении 5 минут (сейчас {{ $value | printf \"%.1f\" }}%)."
+          summary: "⚠️ Высокая загрузка CPU (> 80%)"
+          description: "Средняя загрузка процессора сервера превышает 80% на протяжении 2 минут (сейчас {{ $value | printf \"%.1f\" }}%)."
 
       - alert: HostHighMemoryUsage
-        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
-        for: 5m
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 2m
         labels:
           severity: warning
         annotations:
-          summary: "⚠️ Высокое потребление оперативной памяти (> 90%)"
-          description: "Использование RAM хоста превышает 90% (сейчас {{ $value | printf \"%.1f\" }}%)."
+          summary: "⚠️ Высокое потребление оперативной памяти (> 85%)"
+          description: "Использование RAM хоста превышает 85% (сейчас {{ $value | printf \"%.1f\" }}%)."
 
   - name: termeet_backend_alerts
     rules:
       - alert: BackendDown
         expr: up{job="backend"} == 0
-        for: 1m
+        for: 0s
         labels:
           severity: critical
         annotations:
           summary: "🔥 Сервис Termeet Backend недоступен"
-          description: "Prometheus не может получить /metrics с FastAPI backend-prod более 1 минуты."
+          description: "FastAPI backend-prod упал или не отвечает на запросы."
 
       - alert: BackendHigh5xxRate
-        expr: (sum(rate(http_requests_total{status=~"5.."}[2m])) / sum(rate(http_requests_total[2m]))) * 100 > 2
-        for: 2m
+        expr: (sum(rate(http_requests_total{status=~"5.."}[1m])) / sum(rate(http_requests_total[1m]))) * 100 > 1
+        for: 30s
         labels:
           severity: critical
         annotations:
-          summary: "🔥 Высокий процент 5xx ошибок API (> 2%)"
-          description: "Доля внутренних ошибок сервера составляет {{ $value | printf \"%.2f\" }}% от всех запросов."
+          summary: "🔥 Ошибки 5xx на бэкенде (> 1%)"
+          description: "Доля внутренних ошибок сервера превышает 1% (сейчас {{ $value | printf \"%.2f\" }}% от всех запросов)."
 
       - alert: BackendHighLatency
-        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1.5
-        for: 5m
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[2m])) by (le)) > 0.8
+        for: 2m
         labels:
           severity: warning
         annotations:
-          summary: "⚠️ Задержка ответов API p95 > 1.5с"
+          summary: "⚠️ Задержка ответов API p95 > 800мс"
           description: "95-й перцентиль задержки ответов бэкенда составляет {{ $value | printf \"%.2f\" }}с."
 
   - name: termeet_frontend_alerts
     rules:
       - alert: FrontendCriticalErrorsSpike
-        expr: sum(rate(frontend_client_errors_total[1m])) * 60 > 50
-        for: 1m
+        expr: sum(rate(frontend_client_errors_total[1m])) * 60 > 20
+        for: 30s
         labels:
           severity: critical
         annotations:
-          summary: "🔥 Критический шквал JS-ошибок у клиентов (> 50/мин)"
-          description: "Массовые ошибки в браузере пользователей ({{ $value | printf \"%.0f\" }} ошибок/мин). Возможен белый экран или сбой после деплоя фронтенда."
+          summary: "🔥 Шквал JS-ошибок у клиентов (> 20/мин)"
+          description: "Массовые ошибки в браузере пользователей ({{ $value | printf \"%.0f\" }} ошибок/мин). Возможен сбой после деплоя фронтенда."
 
       - alert: FrontendClientErrorsSpike
-        expr: sum(rate(frontend_client_errors_total[2m])) * 60 > 15
+        expr: sum(rate(frontend_client_errors_total[1m])) * 60 > 5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "⚠️ Повышенный уровень JS-ошибок у клиентов (> 5/мин)"
+          description: "Клиенты сообщают о {{ $value | printf \"%.0f\" }} JS-ошибок в минуту."
+
+      - alert: FrontendSlowLCP
+        expr: histogram_quantile(0.75, sum(rate(frontend_web_vital_duration_seconds_bucket{metric="LCP"}[3m])) by (le)) > 3.0
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "⚠️ Медленная отрисовка контента LCP p75 > 3.0с"
+          description: "У 75% пользователей Largest Contentful Paint превышает 3 секунды (сейчас {{ $value | printf \"%.2f\" }}с)."
+
+      - alert: FrontendSlowFCP
+        expr: histogram_quantile(0.75, sum(rate(frontend_web_vital_duration_seconds_bucket{metric="FCP"}[3m])) by (le)) > 2.0
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "⚠️ Долгая первая отрисовка FCP p75 > 2.0с"
+          description: "Первый контент отрисовывается медленнее 2 секунд (сейчас {{ $value | printf \"%.2f\" }}с)."
+
+      - alert: FrontendSlowINP
+        expr: histogram_quantile(0.75, sum(rate(frontend_web_vital_duration_seconds_bucket{metric="INP"}[2m])) by (le)) > 0.3
         for: 2m
         labels:
           severity: warning
         annotations:
-          summary: "⚠️ Повышенный уровень JS-ошибок у клиентов (> 15/мин)"
-          description: "Клиенты сообщают о {{ $value | printf \"%.0f\" }} JS-ошибок в минуту."
-
-      - alert: FrontendSlowLCP
-        expr: histogram_quantile(0.75, sum(rate(frontend_web_vital_duration_seconds_bucket{metric="LCP"}[10m])) by (le)) > 4.0
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "⚠️ Медленная отрисовка основного контента LCP p75 > 4.0с"
-          description: "У 75% пользователей Largest Contentful Paint превышает 4 секунды (сейчас {{ $value | printf \"%.2f\" }}с)."
-
-      - alert: FrontendSlowFCP
-        expr: histogram_quantile(0.75, sum(rate(frontend_web_vital_duration_seconds_bucket{metric="FCP"}[10m])) by (le)) > 3.0
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "⚠️ Долгая первичная загрузка интерфейса FCP p75 > 3.0с"
-          description: "Первый контент отрисовывается медленнее 3 секунд (сейчас {{ $value | printf \"%.2f\" }}с)."
-
-      - alert: FrontendSlowINP
-        expr: histogram_quantile(0.75, sum(rate(frontend_web_vital_duration_seconds_bucket{metric="INP"}[5m])) by (le)) > 0.5
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "⚠️ Зависание интерфейса / Фризы кликов INP p75 > 500мс"
-          description: "Интерфейс подвисает при выборе слотов или кликах: задержка реакции {{ $value | printf \"%.2f\" }}с."
+          summary: "⚠️ Фризы интерфейса / лаги слотов INP p75 > 300мс"
+          description: "Задержка реакции интерфейса на действия пользователя превышает 300мс (сейчас {{ $value | printf \"%.2f\" }}с)."
 
       - alert: FrontendHighCLS
-        expr: histogram_quantile(0.75, sum(rate(frontend_cumulative_layout_shift_score_bucket[10m])) by (le)) > 0.25
-        for: 10m
+        expr: histogram_quantile(0.75, sum(rate(frontend_cumulative_layout_shift_score_bucket[3m])) by (le)) > 0.15
+        for: 3m
         labels:
           severity: warning
         annotations:
-          summary: "⚠️ Нестабильность верстки / Скачки элементов CLS p75 > 0.25"
-          description: "Сдвиг верстки при загрузке превышает норму (индекс CLS {{ $value | printf \"%.2f\" }})."
+          summary: "⚠️ Сдвиги верстки CLS p75 > 0.15"
+          description: "Сдвиг элементов страницы при загрузке превышает норму (индекс CLS {{ $value | printf \"%.2f\" }})."
 
       - alert: FrontendSlowTTFB
-        expr: histogram_quantile(0.75, sum(rate(frontend_web_vital_duration_seconds_bucket{metric="TTFB"}[5m])) by (le)) > 1.8
-        for: 5m
+        expr: histogram_quantile(0.75, sum(rate(frontend_web_vital_duration_seconds_bucket{metric="TTFB"}[2m])) by (le)) > 1.0
+        for: 2m
         labels:
           severity: warning
         annotations:
-          summary: "⚠️ Медленный ответ сети/сервера на первый байт TTFB p75 > 1.8с"
-          description: "Время до получения первого байта страницы превышает 1.8 секунды (сейчас {{ $value | printf \"%.2f\" }}с)."
+          summary: "⚠️ Медленный ответ сервера TTFB p75 > 1.0с"
+          description: "Время до получения первого байта страницы превышает 1.0с (сейчас {{ $value | printf \"%.2f\" }}с)."

@@ -90,14 +90,30 @@ async def receive_telemetry(payload: Dict[str, Any]) -> Dict[str, str]:
             err_type = err.type or "client_error"
             FRONTEND_CLIENT_ERRORS_TOTAL.labels(type=err_type).inc()
             logger.warning(
-                "Frontend client error: %s (href=%s)",
+                "Frontend client error: %s (pathname=%s, viewport=%s, type=%s, userAgent=%s)",
                 err.message[:200],
-                err.href,
+                err.pathname or err.href,
+                err.viewport or "unknown",
+                err_type,
+                (err.userAgent or "")[:50],
             )
         except Exception as e:
             logger.debug("Failed to process client_error telemetry: %s", e)
 
     return {"status": "ok"}
+
+
+@router.get(
+    "/telemetry/test-error",
+    summary="Тестовый endpoint для проверки 500 ошибки и алертинга",
+    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+)
+async def trigger_test_500_error() -> Dict[str, str]:
+    """Эндпоинт для проверки реакции алертов на 5xx ошибки"""
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Тестовая 500 ошибка для проверки Prometheus BackendHigh5xxRate",
+    )
 
 
 @router.post(

@@ -3,10 +3,17 @@ from pydantic import BaseModel, Field
 
 
 class ClientErrorTelemetry(BaseModel):
-    type: Literal["client_error", "unhandled_rejection"] = "client_error"
+    type: Literal[
+        "client_error", "unhandled_rejection", "react_error_boundary"
+    ] = "client_error"
     message: str = ""
     stack: str | None = None
+    componentStack: str | None = None
     href: str | None = None
+    pathname: str | None = None
+    viewport: str | None = None
+    userAgent: str | None = None
+    userId: str | None = None
     ts: int | None = None
 
 

@@ -64,6 +64,9 @@ class Meetings(Base):
     observers: Mapped[list] = mapped_column(
         JSONB, default=lambda: [], server_default="[]", nullable=False
     )
+    calendar_events: Mapped[dict] = mapped_column(
+        JSONB, default=lambda: {}, server_default="{}", nullable=False
+    )
 
     # Поля, обязательные для залогинов
     owner_id: Mapped[Optional[int]] = mapped_column(

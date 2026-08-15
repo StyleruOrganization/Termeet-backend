@@ -100,7 +100,11 @@ async def validate_password(
 
 
 async def send_email(
-    recipient: str, subject: str, plain_content: str, html_content: str = ""
+    recipient: str,
+    subject: str,
+    plain_content: str,
+    html_content: str = "",
+    ics_content: str | None = None,
 ):
     mailbox = (config.email.EMAIL_USERNAME or "").strip()
     sender = mailbox or "noreply@termeet.tech"
@@ -112,6 +116,13 @@ async def send_email(
     message.set_content(plain_content)
     if html_content:
         message.add_alternative(html_content, subtype="html")
+    if ics_content:
+        message.add_attachment(
+            ics_content.encode("utf-8"),
+            maintype="text",
+            subtype="calendar",
+            filename="termeet.ics",
+        )
 
     send_email_args = {
         "hostname": config.email.EMAIL_HOST,

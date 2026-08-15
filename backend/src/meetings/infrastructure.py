@@ -63,8 +63,12 @@ class Infrastructure(Repository):
         query: Select = (
             select(Meetings)
             .options(
-                selectinload(Meetings.participants),
-                selectinload(Meetings.owner),
+                selectinload(Meetings.participants).selectinload(
+                    Users.oauth_accounts
+                ),
+                selectinload(Meetings.owner).selectinload(
+                    Users.oauth_accounts
+                ),
             )
             .where(Meetings.id == id)
         )

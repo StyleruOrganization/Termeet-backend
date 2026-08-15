@@ -16,6 +16,14 @@ class Infrastructure(Repository):
     def __init__(self, session):
         super().__init__(session)
 
+    async def get_with_oauth(self, user_id) -> Users | None:
+        result = await self.session.execute(
+            select(Users)
+            .options(selectinload(Users.oauth_accounts))
+            .where(Users.id == user_id)
+        )
+        return result.scalar_one_or_none()
+
     async def update_settings(
         self, user_id, payload: UserSettingsUpdate
     ) -> Users:

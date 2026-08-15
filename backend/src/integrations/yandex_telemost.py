@@ -14,8 +14,9 @@ TELEMOST_CREATE_URL = (
 )
 YANDEX_TOKEN_URL = "https://oauth.yandex.ru/token"
 TELEMOST_SCOPE = "telemost-api:conferences.create"
+CALENDAR_SCOPE = "calendar:all"
 YANDEX_LOGIN_SCOPES = "login:info login:email"
-YANDEX_INTEGRATION_SCOPES = YANDEX_LOGIN_SCOPES
+YANDEX_INTEGRATION_SCOPES = f"{YANDEX_LOGIN_SCOPES} {CALENDAR_SCOPE}"
 
 
 def oauth_is_yandex(account: OAuthAccount) -> bool:

@@ -78,6 +78,20 @@ class MeetFinalUpdate(BaseModel):
     slots: list[list[str]]
 
 
+class CalendarConflict(BaseModel):
+    name: str
+    titles: list[str] = Field(default_factory=list)
+
+    model_config = _API
+
+
+class CalendarSyncInfo(BaseModel):
+    synced: int = 0
+    conflicts: list[CalendarConflict] = Field(default_factory=list)
+
+    model_config = _API
+
+
 class UserMeetingItem(BaseModel):
     hash: UUID
     name: str
@@ -147,6 +161,9 @@ class MeetResponse(Meet):
     )
     observers: list[ObserverUser] = []
     permissions: MeetPermissions | None = None
+    calendar_sync: "CalendarSyncInfo | None" = Field(
+        None, serialization_alias="calendarSync"
+    )
 
     @field_validator("slots", mode="before")
     @classmethod

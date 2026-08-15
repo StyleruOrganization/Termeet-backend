@@ -1,13 +1,22 @@
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 from fastapi import HTTPException, status
 
-from backend.src.integrations.yandex_telemost import (
-    create_telemost_conference,
-    yandex_account_from_user,
+from backend.src.integrations.yandex_calendar import (
+    build_ics,
+    event_uid,
+    events_overlap,
+    has_calendar_scope,
+    list_events,
+    upsert_event,
 )
+from backend.src.integrations.yandex_telemost import yandex_account_from_user
 from backend.src.notifications.meet_emails import (
+    format_range,
+    meet_url,
+    notify_calendar_conflict,
     notify_final_time,
     notify_owner_participant_voted,
 )
@@ -28,6 +37,8 @@ from backend.src.meetings.permissions import (
     organizer_slot_name,
 )
 from backend.src.meetings.schemas import (
+    CalendarConflict,
+    CalendarSyncInfo,
     MeetPermissions,
     MeetResponse,
     MeetCreate,
@@ -133,15 +144,6 @@ class Service:
     async def create_meeting(
         self, meeting: MeetCreate, user: UserSchema | None
     ) -> MeetResponse:
-        if meeting.create_telemost and user:
-            owner = await self.repository.get_user_with_oauth(user.id)
-            account = yandex_account_from_user(owner) if owner else None
-            if account:
-                try:
-                    join_url = await create_telemost_conference(account)
-                    meeting = meeting.model_copy(update={"link": join_url})
-                except Exception:
-                    pass
         record: Meetings = await self.repository.create_meeting(meeting, user)
         return self._to_response(record, user)
 
@@ -320,6 +322,151 @@ class Service:
         was_set = has_final_slot(record)
         await self.repository.set_final_slot(record, payload.slots)
         await self.notify_live(hash)
+        sync = await self._sync_final_calendars(
+            record, payload.slots, user, changed=was_set
+        )
+        response = self._to_response(record, user)
+        response.calendar_sync = sync
+        return response
+
+    def _parse_iso(self, value: str) -> datetime:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+    def _cell_keys(self, ranges) -> set[str]:
+        keys: set[str] = set()
+        for item in ranges or []:
+            if not item or len(item) < 2:
+                continue
+            start = self._parse_iso(item[0])
+            end = self._parse_iso(item[1])
+            current = start
+            while current <= end:
+                keys.add(current.strftime("%Y-%m-%dT%H:%M"))
+                current += timedelta(minutes=30)
+        return keys
+
+    def _final_span(self, slots) -> tuple[datetime, datetime] | None:
+        starts: list[datetime] = []
+        ends: list[datetime] = []
+        for item in slots or []:
+            if not item or len(item) < 2:
+                continue
+            starts.append(self._parse_iso(item[0]))
+            ends.append(self._parse_iso(item[1]))
+        if not starts:
+            return None
+        return min(starts), max(ends) + timedelta(minutes=30)
+
+    async def _sync_final_calendars(
+        self,
+        record: "Meetings",
+        slots,
+        actor: UserSchema | None,
+        changed: bool,
+    ) -> CalendarSyncInfo:
+        span = self._final_span(slots)
+        if span is None:
+            return CalendarSyncInfo()
+        start, end = span
+        when_text = format_range(start, end)
+        ics = build_ics(
+            uid=f"termeet-{record.id}@termeet.tech",
+            summary=record.name,
+            start=start,
+            end=end,
+            description=record.description or "",
+            url=meet_url(record.id),
+        )
+        final_keys = self._cell_keys(slots)
+        attendee_ids: dict[str, str] = {}
+        for slot in record.slots or []:
+            user_id = slot.get("user_id")
+            if not user_id:
+                continue
+            voted = self._cell_keys(slot.get("slots") or [])
+            if final_keys and final_keys.issubset(voted):
+                attendee_ids[str(user_id)] = slot.get("name") or "Участник"
+        if actor:
+            attendee_ids.setdefault(
+                str(actor.id),
+                f"{actor.first_name} {actor.last_name}".strip() or "Вы",
+            )
+
+        stored = dict(record.calendar_events or {})
+        synced = 0
+        conflicts: list[CalendarConflict] = []
+        conflict_emails: set[str] = set()
+
+        for user_id, name in attendee_ids.items():
+            try:
+                person_id = UUID(str(user_id))
+            except (TypeError, ValueError):
+                continue
+            person = await self.repository.get_user_with_oauth(person_id)
+            if person is None:
+                continue
+            account = yandex_account_from_user(person)
+            if not has_calendar_scope(account):
+                continue
+            uid = event_uid(record.id, person.id)
+            busy_titles: list[str] = []
+            try:
+                existing = await list_events(
+                    account,
+                    start - timedelta(minutes=1),
+                    end + timedelta(minutes=1),
+                    fallback_email=person.email,
+                )
+                for event in existing:
+                    if event.uid == uid:
+                        continue
+                    if events_overlap(start, end, event.start, event.end):
+                        busy_titles.append(event.title)
+            except Exception:
+                existing = []
+            href = None
+            entry = stored.get(str(person.id))
+            if isinstance(entry, dict):
+                href = entry.get("href")
+            try:
+                saved_href = await upsert_event(
+                    account,
+                    uid=uid,
+                    summary=record.name,
+                    start=start,
+                    end=end,
+                    description=record.description or "",
+                    url=meet_url(record.id),
+                    href=href,
+                    fallback_email=person.email,
+                )
+            except Exception:
+                saved_href = None
+            if saved_href:
+                stored[str(person.id)] = {"uid": uid, "href": saved_href}
+                synced += 1
+            if busy_titles:
+                conflicts.append(
+                    CalendarConflict(name=name, titles=busy_titles[:5])
+                )
+                if person.email and getattr(
+                    person, "notify_on_final", True
+                ):
+                    conflict_emails.add(person.email)
+                    await notify_calendar_conflict(
+                        person.email,
+                        record.name,
+                        record.id,
+                        when_text,
+                        busy_titles[:5],
+                        record.link,
+                        ics,
+                    )
+
+        record.calendar_events = stored
+        self.repository.session.add(record)
+        await self.repository.session.flush()
+
         emails: list[str] = []
         if record.owner and getattr(record.owner, "notify_on_final", True):
             emails.append(record.owner.email)
@@ -329,9 +476,16 @@ class Service:
         for extra in record.emails or []:
             emails.append(extra)
         await notify_final_time(
-            emails, record.name, record.id, record.link, changed=was_set
+            emails,
+            record.name,
+            record.id,
+            record.link,
+            changed=changed,
+            when_text=when_text,
+            ics_content=ics,
+            skip_emails=conflict_emails,
         )
-        return self._to_response(record, user)
+        return CalendarSyncInfo(synced=synced, conflicts=conflicts)
 
     async def delete_slots_of_user(
         self, hash: UUID, username: str, user: UserSchema | None

@@ -37,3 +37,12 @@ class OAuthAccount(Base):
     token_expires_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    yandex_login: Mapped[Optional[str]] = mapped_column(
+        String(128), nullable=True
+    )
+    yandex_email: Mapped[Optional[str]] = mapped_column(
+        String(256), nullable=True
+    )
+    display_name: Mapped[Optional[str]] = mapped_column(
+        String(256), nullable=True
+    )

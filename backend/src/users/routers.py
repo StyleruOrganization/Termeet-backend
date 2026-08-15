@@ -5,7 +5,12 @@ from backend.src.auth.utils import REFRESH_TOKEN_COOKIE
 from backend.src.schemas import ErrorResponse
 from backend.src.dependencies import get_async_session
 from backend.src.auth.dependencies import get_required_active_user
-from backend.src.users.schemas import UserSchema, UserSearchItem, UserSettingsUpdate
+from backend.src.users.schemas import (
+    CalendarMonthResponse,
+    UserSchema,
+    UserSearchItem,
+    UserSettingsUpdate,
+)
 from backend.src.users.services import Service as UsersService
 from backend.src.meetings.schemas import UserMeetingItem
 from backend.src.meetings.services import Service as MeetingsService
@@ -86,6 +91,26 @@ async def delete_me(
         path="/",
     )
     return {"detail": "Account deleted"}
+
+
+@router.get(
+    "/me/calendar",
+    response_model=CalendarMonthResponse,
+    summary="События Яндекс Календаря текущего пользователя",
+)
+async def my_calendar(
+    start: str = Query(..., description="ISO начало окна"),
+    end: str = Query(..., description="ISO конец окна"),
+    user: UserSchema = Depends(get_required_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    from datetime import datetime
+
+    def parse(value: str) -> datetime:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+    service = UsersService(session)
+    return await service.list_calendar(user, parse(start), parse(end))
 
 
 @router.get(

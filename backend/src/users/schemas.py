@@ -61,6 +61,10 @@ class UserSchema(BaseModel):
     show_onboarding: bool = True
     has_yandex: bool = False
     has_telemost: bool = False
+    has_calendar: bool = False
+    yandex_login: str | None = None
+    yandex_email: str | None = None
+    yandex_name: str | None = None
 
     model_config = ConfigDict(from_attributes=True, extra="ignore")
 
@@ -99,7 +103,12 @@ class UserSchema(BaseModel):
             "show_onboarding": getattr(data, "show_onboarding", True),
             "has_yandex": False,
             "has_telemost": False,
+            "has_calendar": False,
+            "yandex_login": None,
+            "yandex_email": None,
+            "yandex_name": None,
         }
+        from backend.src.integrations.yandex_calendar import has_calendar_scope
         from backend.src.integrations.yandex_telemost import (
             has_telemost_scope,
             yandex_account_from_user,
@@ -108,6 +117,11 @@ class UserSchema(BaseModel):
         yandex = yandex_account_from_user(data)
         payload["has_yandex"] = bool(yandex)
         payload["has_telemost"] = has_telemost_scope(yandex)
+        payload["has_calendar"] = has_calendar_scope(yandex)
+        if yandex:
+            payload["yandex_login"] = getattr(yandex, "yandex_login", None)
+            payload["yandex_email"] = getattr(yandex, "yandex_email", None)
+            payload["yandex_name"] = getattr(yandex, "display_name", None)
         return payload
 
 
@@ -146,4 +160,18 @@ class UserSearchItem(BaseModel):
     id: UUID
     first_name: str
     last_name: str
+
+
+class CalendarEventItem(BaseModel):
+    id: str
+    title: str
+    start: str
+    end: str
+    source: Literal["yandex"] = "yandex"
+
+
+class CalendarMonthResponse(BaseModel):
+    events: list[CalendarEventItem] = Field(default_factory=list)
+    has_calendar: bool = False
+    error: str | None = None
 

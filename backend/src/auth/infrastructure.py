@@ -116,6 +116,16 @@ class Infrastructure(Repository):
             found.refresh_token = tokens.refresh_token
         found.scopes = tokens.scope or scopes
         found.token_expires_at = expires_at
+        found.yandex_login = user_data.login or found.yandex_login
+        found.yandex_email = (
+            user_data.default_email or found.yandex_email
+        )
+        found.display_name = (
+            user_data.display_name
+            or user_data.real_name
+            or f"{user_data.first_name} {user_data.last_name}".strip()
+            or found.display_name
+        )
         self.session.add(user)
         await self.session.flush()
 

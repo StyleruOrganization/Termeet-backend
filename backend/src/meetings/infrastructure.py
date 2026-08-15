@@ -59,6 +59,22 @@ class Infrastructure(Repository):
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
+    async def list_users_by_ids(self, ids: list[str]) -> list[Users]:
+        uuids: list[UUID] = []
+        for item in ids:
+            try:
+                uuids.append(UUID(str(item)))
+            except ValueError:
+                continue
+        if not uuids:
+            return []
+        result = await self.session.execute(
+            select(Users).where(
+                Users.id.in_(uuids), Users.is_active.is_(True)
+            )
+        )
+        return list(result.scalars().all())
+
     async def get_meeting_with_participants(self, id: UUID) -> Meetings:
         query: Select = (
             select(Meetings)
@@ -173,6 +189,17 @@ class Infrastructure(Repository):
         record.duration = meeting.duration
         if meeting.data_range is not None:
             record.data_range = meeting.data_range
+        if meeting.invited_user_ids is not None:
+            owner_id = str(record.owner_id) if record.owner_id else None
+            cleaned: list[str] = []
+            seen: set[str] = set()
+            for item in meeting.invited_user_ids:
+                uid = str(item)
+                if not uid or uid == owner_id or uid in seen:
+                    continue
+                seen.add(uid)
+                cleaned.append(uid)
+            record.invited_user_ids = cleaned
 
         self.session.add(record)
         await self.session.flush()

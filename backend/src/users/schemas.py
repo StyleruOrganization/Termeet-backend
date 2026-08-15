@@ -1,13 +1,45 @@
 from uuid import UUID
 from typing import Literal, Optional
+import re
 
 from pydantic import (
     BaseModel,
     ConfigDict,
+    EmailStr,
     Field,
     field_validator,
     model_validator,
 )
+
+
+_TELEGRAM_USER = re.compile(r"^[A-Za-z][A-Za-z0-9_]{4,31}$")
+_VK_ID = re.compile(r"^id\d{1,12}$", re.I)
+_VK_SCREEN = re.compile(r"^[A-Za-z][A-Za-z0-9._]{2,31}$")
+_VK_DIGITS = re.compile(r"^\d{1,12}$")
+_TELEGRAM_PREFIX = re.compile(
+    r"^(?:https?://)?(?:t\.me|telegram\.me)/", re.I
+)
+_VK_PREFIX = re.compile(r"^(?:https?://)?(?:m\.)?vk\.com/", re.I)
+
+
+def _normalize_telegram(value: str) -> str:
+    nick = _TELEGRAM_PREFIX.sub("", value.strip())
+    nick = nick.lstrip("@").rstrip("/")
+    nick = nick.split("?", 1)[0]
+    if not _TELEGRAM_USER.fullmatch(nick):
+        raise ValueError("Укажите Telegram как @username или t.me/username")
+    return f"@{nick}"
+
+
+def _normalize_vk(value: str) -> str:
+    slug = _VK_PREFIX.sub("", value.strip())
+    slug = slug.lstrip("@").rstrip("/")
+    slug = slug.split("?", 1)[0].split("/", 1)[0]
+    if _VK_DIGITS.fullmatch(slug):
+        return f"id{slug}"
+    if _VK_ID.fullmatch(slug) or _VK_SCREEN.fullmatch(slug):
+        return slug
+    raise ValueError("Укажите страницу ВК: vk.com/имя, id123 или короткое имя")
 
 
 class AvailabilityInterval(BaseModel):
@@ -146,7 +178,7 @@ class UserSettingsUpdate(BaseModel):
     notify_on_vote: bool | None = None
     notify_on_final: bool | None = None
     show_onboarding: bool | None = None
-    contact_email: str | None = Field(None, max_length=256)
+    contact_email: EmailStr | None = Field(None, max_length=256)
     contact_telegram: str | None = Field(None, max_length=128)
     contact_vk: str | None = Field(None, max_length=256)
 
@@ -168,6 +200,20 @@ class UserSettingsUpdate(BaseModel):
             text = value.strip()
             return text or None
         return value
+
+    @field_validator("contact_telegram")
+    @classmethod
+    def valid_telegram(cls, value):
+        if value is None:
+            return None
+        return _normalize_telegram(value)
+
+    @field_validator("contact_vk")
+    @classmethod
+    def valid_vk(cls, value):
+        if value is None:
+            return None
+        return _normalize_vk(value)
 
     @field_validator("availability_template")
     @classmethod

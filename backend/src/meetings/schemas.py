@@ -217,11 +217,6 @@ class MeetCreate(Meet):
         validation_alias=_json_names("create_telemost", "createTelemost"),
         serialization_alias="createTelemost",
     )
-    add_to_calendar: bool = Field(
-        False,
-        validation_alias=_json_names("add_to_calendar", "addToCalendar"),
-        serialization_alias="addToCalendar",
-    )
     anyone_can_edit: bool | None = Field(
         None,
         validation_alias=_json_names("anyone_can_edit", "anyoneCanEdit"),
@@ -282,6 +277,15 @@ class OrganizerContacts(BaseModel):
     model_config = _API
 
 
+class InvitedUser(BaseModel):
+    id: UUID
+    first_name: str
+    last_name: str
+    has_avatar: bool = Field(False, serialization_alias="hasAvatar")
+
+    model_config = _API
+
+
 class MeetResponse(Meet):
     hash: UUID = Field(validation_alias="id")
     slots: list[SlotsUser] = []
@@ -314,6 +318,9 @@ class MeetResponse(Meet):
     access_denied: bool = Field(False, serialization_alias="accessDenied")
     organizer_contacts: OrganizerContacts | None = Field(
         None, serialization_alias="organizerContacts"
+    )
+    invited_users: list[InvitedUser] = Field(
+        default_factory=list, serialization_alias="invitedUsers"
     )
     remind_enabled: bool = Field(False, serialization_alias="remindEnabled")
     remind_offsets: list[int] = Field(

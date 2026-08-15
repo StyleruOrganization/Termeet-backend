@@ -50,6 +50,7 @@ from backend.src.meetings.schemas import (
     MeetSettingsUpdate,
     ObserverUser,
     OrganizerContacts,
+    InvitedUser,
     SlotsUser,
     UserMeetingItem,
 )
@@ -133,6 +134,8 @@ class Service:
                     if record.team
                     else None,
                     "access_denied": True,
+                    "organizer_contacts": None,
+                    "invited_users": [],
                     "vote_deadline": None,
                     "remind_enabled": False,
                     "remind_offsets": [],
@@ -216,6 +219,27 @@ class Service:
             meeting.observers = []
         return meeting
 
+    async def _invited_people(self, record: "Meetings") -> list[InvitedUser]:
+        ids = [str(item) for item in (record.invited_user_ids or []) if item]
+        if not ids:
+            return []
+        people = await self.repository.list_users_by_ids(ids)
+        by_id = {str(person.id): person for person in people}
+        result: list[InvitedUser] = []
+        for uid in ids:
+            person = by_id.get(uid)
+            if person is None:
+                continue
+            result.append(
+                InvitedUser(
+                    id=person.id,
+                    first_name=person.first_name,
+                    last_name=person.last_name,
+                    has_avatar=bool(getattr(person, "avatar_key", None)),
+                )
+            )
+        return result
+
     async def notify_live(self, meeting_id: UUID) -> None:
         try:
             record = await self.repository.get_meeting(meeting_id)
@@ -229,7 +253,10 @@ class Service:
         record: Meetings = await self.repository.get_meeting(hash)
         if not can_view_meeting(record, user):
             return self._to_response(record, user, access_denied=True)
-        return self._to_response(record, user)
+        meeting = self._to_response(record, user)
+        if meeting.is_creator:
+            meeting.invited_users = await self._invited_people(record)
+        return meeting
 
     async def create_meeting(
         self, meeting: MeetCreate, user: UserSchema | None
@@ -261,11 +288,6 @@ class Service:
         elif not meeting.team_id:
             meeting.invite_only_vote = False
         record: Meetings = await self.repository.create_meeting(meeting, user)
-        if user and meeting.add_to_calendar:
-            synced = await self._add_meeting_to_calendar(record, user)
-            response = self._to_response(record, user)
-            response.calendar_sync = CalendarSyncInfo(synced=int(synced))
-            return response
         return self._to_response(record, user)
 
     async def _notify_owner_vote(
@@ -489,69 +511,6 @@ class Service:
         if not starts:
             return None
         return min(starts), max(ends) + timedelta(minutes=30)
-
-    def _duration_minutes(self, text: str | None) -> int:
-        raw = (text or "").lower().replace(" ", "")
-        table = {
-            "30мин": 30,
-            "1час": 60,
-            "1,5часа": 90,
-            "1.5часа": 90,
-            "2часа": 120,
-            "2,5часа": 150,
-            "2.5часа": 150,
-            "3часа": 180,
-        }
-        return table.get(raw, 60)
-
-    def _placeholder_span(
-        self, record: "Meetings"
-    ) -> tuple[datetime, datetime] | None:
-        ranges = record.data_range or []
-        if not ranges:
-            return None
-        first = ranges[0]
-        if not first or len(first) < 1:
-            return None
-        start = self._parse_iso(first[0])
-        minutes = self._duration_minutes(record.duration)
-        return start, start + timedelta(minutes=minutes)
-
-    async def _add_meeting_to_calendar(
-        self, record: "Meetings", user: UserSchema
-    ) -> bool:
-        person = await self.repository.get_user_with_oauth(user.id)
-        if person is None:
-            return False
-        account = yandex_account_from_user(person)
-        if not has_calendar_scope(account):
-            return False
-        span = self._placeholder_span(record)
-        if span is None:
-            return False
-        start, end = span
-        uid = event_uid(record.id, person.id)
-        try:
-            href = await upsert_event(
-                account,
-                uid=uid,
-                summary=record.name,
-                start=start,
-                end=end,
-                description=record.description or "",
-                url=meet_url(record.id),
-                fallback_email=person.email,
-            )
-        except Exception:
-            href = None
-        if not href:
-            return False
-        stored = dict(record.calendar_events or {})
-        stored[str(person.id)] = {"uid": uid, "href": href, "sequence": 0}
-        record.calendar_events = stored
-        self.repository.session.add(record)
-        await self.repository.session.flush()
-        return True
 
     async def _sync_final_calendars(
         self,

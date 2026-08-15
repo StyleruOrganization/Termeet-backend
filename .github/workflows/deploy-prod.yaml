@@ -53,15 +53,12 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            mkdir -p backend-prod/grafana_data backend-prod/prometheus_data
+            mkdir -p backend-prod
             cd backend-prod
-            for f in grafana_data/dashboards.yml grafana_data/datasources.yml prometheus_data/prometheus.yml; do
-              if [ -d "$f" ]; then
-                echo "Removing stub directory $f"
-                docker stop grafana-prod 2>/dev/null || true
-                rm -rf "$f"
-              fi
-            done
+            docker stop grafana-prod prometheus-prod 2>/dev/null || true
+            # Bind-mounts Docker создаёт от root; rm от CI-юзера не проходит.
+            docker run --rm -v "$(pwd):/work" alpine sh -c \
+              'rm -rf /work/grafana_data /work/prometheus_data'
 
       - name: Copy compose and monitoring configs to server
         uses: appleboy/scp-action@v0.1.7
@@ -99,4 +96,5 @@ jobs:
             else
               echo "Обновляю только backend-prod"
               docker compose -f docker-compose-prod.yml up -d --pull always --no-deps backend
+              docker compose -f docker-compose-prod.yml up -d grafana prometheus
             fi

@@ -7,6 +7,8 @@ from fastapi import UploadFile
 from backend.src.integrations.yandex_calendar import (
     has_calendar_scope,
     list_events,
+    upsert_event,
+    delete_event,
 )
 from backend.src.integrations.yandex_telemost import yandex_account_from_user
 from backend.src.storage.photos import (
@@ -18,6 +20,7 @@ from backend.src.storage.photos import (
 )
 from backend.src.users.infrastructures import Infrastructure
 from backend.src.users.schemas import (
+    CalendarEventCreate,
     CalendarEventItem,
     CalendarMonthResponse,
     UserSchema,
@@ -77,10 +80,104 @@ class Service:
                 title=event.title,
                 start=event.start.isoformat(),
                 end=event.end.isoformat(),
+                href=event.href,
             )
             for event in events
         ]
         return CalendarMonthResponse(events=items, has_calendar=True)
+
+    async def create_calendar_event(
+        self, user: UserSchema, payload: CalendarEventCreate
+    ) -> CalendarEventItem:
+        import uuid
+
+        from fastapi import HTTPException, status
+
+        record = await self.repository.get_with_oauth(user.id)
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+        account = yandex_account_from_user(record)
+        if not has_calendar_scope(account):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Calendar is not connected",
+            )
+        title = (payload.title or "").strip() or "Встреча"
+        try:
+            start = datetime.fromisoformat(
+                payload.start.replace("Z", "+00:00")
+            )
+            end = datetime.fromisoformat(payload.end.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid start or end",
+            )
+        if end <= start:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="End must be after start",
+            )
+        uid = f"termeet-manual-{uuid.uuid4()}@termeet.tech"
+        try:
+            href = await upsert_event(
+                account,
+                uid=uid,
+                summary=title,
+                start=start,
+                end=end,
+                description=payload.description or "",
+                fallback_email=record.email,
+            )
+        except Exception:
+            href = None
+        if not href:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Could not write to Yandex Calendar",
+            )
+        return CalendarEventItem(
+            id=uid,
+            title=title,
+            start=start.isoformat(),
+            end=end.isoformat(),
+            href=href,
+        )
+
+    async def delete_calendar_event(self, user: UserSchema, href: str) -> None:
+        from fastapi import HTTPException, status
+
+        if not (href or "").strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="href required",
+            )
+        record = await self.repository.get_with_oauth(user.id)
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+        account = yandex_account_from_user(record)
+        if not has_calendar_scope(account):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Calendar is not connected",
+            )
+        try:
+            ok = await delete_event(
+                account, href, fallback_email=record.email
+            )
+        except Exception:
+            ok = False
+        if not ok:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Could not delete from Yandex Calendar",
+            )
 
     async def set_avatar(
         self, user: UserSchema, upload: UploadFile, s3_client

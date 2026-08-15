@@ -127,10 +127,37 @@ class Infrastructure(Repository):
             # Достаем пользователя из словаря сессии
             cached_user = await self.get_cached_user(user)
             object.owner = cached_user
-            object.anyone_can_edit = False
-            object.anyone_can_delete_participants = False
-            object.require_login_to_vote = False
-            object.anyone_can_set_final = False
+            object.anyone_can_edit = (
+                bool(meeting.anyone_can_edit)
+                if meeting.anyone_can_edit is not None
+                else False
+            )
+            object.anyone_can_delete_participants = (
+                bool(meeting.anyone_can_delete_participants)
+                if meeting.anyone_can_delete_participants is not None
+                else False
+            )
+            object.require_login_to_vote = (
+                bool(meeting.require_login_to_vote)
+                if meeting.require_login_to_vote is not None
+                else False
+            )
+            object.anyone_can_set_final = (
+                bool(meeting.anyone_can_set_final)
+                if meeting.anyone_can_set_final is not None
+                else False
+            )
+            object.remind_enabled = bool(meeting.remind_enabled)
+            object.remind_offsets = list(meeting.remind_offsets or [])
+            object.lock_vote_after_deadline = bool(
+                meeting.lock_vote_after_deadline
+            )
+            if object.vote_deadline is None:
+                object.remind_enabled = False
+                object.lock_vote_after_deadline = False
+                object.remind_offsets = []
+            elif object.remind_enabled and not object.remind_offsets:
+                object.remind_offsets = [1440]
 
         self.session.add(object)
         await self.session.flush()

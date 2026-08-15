@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 
 from backend.src.integrations.yandex_calendar import (
     build_ics,
+    delete_event,
     event_uid,
     events_overlap,
     has_calendar_scope,
@@ -260,6 +261,11 @@ class Service:
         elif not meeting.team_id:
             meeting.invite_only_vote = False
         record: Meetings = await self.repository.create_meeting(meeting, user)
+        if user and meeting.add_to_calendar:
+            synced = await self._add_meeting_to_calendar(record, user)
+            response = self._to_response(record, user)
+            response.calendar_sync = CalendarSyncInfo(synced=int(synced))
+            return response
         return self._to_response(record, user)
 
     async def _notify_owner_vote(
@@ -484,6 +490,69 @@ class Service:
             return None
         return min(starts), max(ends) + timedelta(minutes=30)
 
+    def _duration_minutes(self, text: str | None) -> int:
+        raw = (text or "").lower().replace(" ", "")
+        table = {
+            "30мин": 30,
+            "1час": 60,
+            "1,5часа": 90,
+            "1.5часа": 90,
+            "2часа": 120,
+            "2,5часа": 150,
+            "2.5часа": 150,
+            "3часа": 180,
+        }
+        return table.get(raw, 60)
+
+    def _placeholder_span(
+        self, record: "Meetings"
+    ) -> tuple[datetime, datetime] | None:
+        ranges = record.data_range or []
+        if not ranges:
+            return None
+        first = ranges[0]
+        if not first or len(first) < 1:
+            return None
+        start = self._parse_iso(first[0])
+        minutes = self._duration_minutes(record.duration)
+        return start, start + timedelta(minutes=minutes)
+
+    async def _add_meeting_to_calendar(
+        self, record: "Meetings", user: UserSchema
+    ) -> bool:
+        person = await self.repository.get_user_with_oauth(user.id)
+        if person is None:
+            return False
+        account = yandex_account_from_user(person)
+        if not has_calendar_scope(account):
+            return False
+        span = self._placeholder_span(record)
+        if span is None:
+            return False
+        start, end = span
+        uid = event_uid(record.id, person.id)
+        try:
+            href = await upsert_event(
+                account,
+                uid=uid,
+                summary=record.name,
+                start=start,
+                end=end,
+                description=record.description or "",
+                url=meet_url(record.id),
+                fallback_email=person.email,
+            )
+        except Exception:
+            href = None
+        if not href:
+            return False
+        stored = dict(record.calendar_events or {})
+        stored[str(person.id)] = {"uid": uid, "href": href, "sequence": 0}
+        record.calendar_events = stored
+        self.repository.session.add(record)
+        await self.repository.session.flush()
+        return True
+
     async def _sync_final_calendars(
         self,
         record: "Meetings",
@@ -552,10 +621,17 @@ class Service:
                         busy_titles.append(event.title)
             except Exception:
                 existing = []
-            href = None
             entry = stored.get(str(person.id))
+            href = None
+            sequence = 1
             if isinstance(entry, dict):
                 href = entry.get("href")
+                try:
+                    sequence = int(entry.get("sequence") or 0) + 1
+                except (TypeError, ValueError):
+                    sequence = 1
+            if sequence < 1:
+                sequence = 1
             try:
                 saved_href = await upsert_event(
                     account,
@@ -567,11 +643,16 @@ class Service:
                     url=meet_url(record.id),
                     href=href,
                     fallback_email=person.email,
+                    sequence=sequence,
                 )
             except Exception:
                 saved_href = None
             if saved_href:
-                stored[str(person.id)] = {"uid": uid, "href": saved_href}
+                stored[str(person.id)] = {
+                    "uid": uid,
+                    "href": saved_href,
+                    "sequence": sequence,
+                }
                 synced += 1
                 if person.email:
                     synced_emails.add(person.email.lower())
@@ -592,6 +673,30 @@ class Service:
                         record.link,
                         ics_content=None if saved_href else ics,
                     )
+
+        keep_ids = set(attendee_ids.keys())
+        for stored_id in list(stored.keys()):
+            if stored_id in keep_ids:
+                continue
+            leftover = stored.get(stored_id)
+            href = leftover.get("href") if isinstance(leftover, dict) else None
+            try:
+                leftover_id = UUID(str(stored_id))
+            except (TypeError, ValueError):
+                stored.pop(stored_id, None)
+                continue
+            person = await self.repository.get_user_with_oauth(leftover_id)
+            account = yandex_account_from_user(person) if person else None
+            if href and has_calendar_scope(account):
+                try:
+                    await delete_event(
+                        account,
+                        href,
+                        fallback_email=person.email if person else "",
+                    )
+                except Exception:
+                    pass
+            stored.pop(stored_id, None)
 
         record.calendar_events = stored
         self.repository.session.add(record)

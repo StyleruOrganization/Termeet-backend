@@ -217,6 +217,61 @@ class MeetCreate(Meet):
         validation_alias=_json_names("create_telemost", "createTelemost"),
         serialization_alias="createTelemost",
     )
+    add_to_calendar: bool = Field(
+        False,
+        validation_alias=_json_names("add_to_calendar", "addToCalendar"),
+        serialization_alias="addToCalendar",
+    )
+    anyone_can_edit: bool | None = Field(
+        None,
+        validation_alias=_json_names("anyone_can_edit", "anyoneCanEdit"),
+        serialization_alias="anyoneCanEdit",
+    )
+    anyone_can_delete_participants: bool | None = Field(
+        None,
+        validation_alias=_json_names(
+            "anyone_can_delete_participants", "anyoneCanDeleteParticipants"
+        ),
+        serialization_alias="anyoneCanDeleteParticipants",
+    )
+    require_login_to_vote: bool | None = Field(
+        None,
+        validation_alias=_json_names(
+            "require_login_to_vote", "requireLoginToVote"
+        ),
+        serialization_alias="requireLoginToVote",
+    )
+    anyone_can_set_final: bool | None = Field(
+        None,
+        validation_alias=_json_names(
+            "anyone_can_set_final", "anyoneCanSetFinal"
+        ),
+        serialization_alias="anyoneCanSetFinal",
+    )
+    remind_enabled: bool | None = Field(
+        None,
+        validation_alias=_json_names("remind_enabled", "remindEnabled"),
+        serialization_alias="remindEnabled",
+    )
+    remind_offsets: list[int] | None = Field(
+        None,
+        validation_alias=_json_names("remind_offsets", "remindOffsets"),
+        serialization_alias="remindOffsets",
+    )
+    lock_vote_after_deadline: bool | None = Field(
+        None,
+        validation_alias=_json_names(
+            "lock_vote_after_deadline", "lockVoteAfterDeadline"
+        ),
+        serialization_alias="lockVoteAfterDeadline",
+    )
+
+    @field_validator("remind_offsets")
+    @classmethod
+    def validate_create_remind_offsets(cls, value: list[int] | None):
+        if value is None:
+            return None
+        return normalize_remind_offsets(value)
 
 
 class OrganizerContacts(BaseModel):

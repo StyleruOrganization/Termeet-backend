@@ -189,7 +189,15 @@ class CalendarEventItem(BaseModel):
     title: str
     start: str
     end: str
+    href: str = ""
     source: Literal["yandex"] = "yandex"
+
+
+class CalendarEventCreate(BaseModel):
+    title: str
+    start: str
+    end: str
+    description: str | None = None
 
 
 class CalendarMonthResponse(BaseModel):

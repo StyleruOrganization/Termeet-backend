@@ -9,6 +9,8 @@ from backend.src.schemas import ErrorResponse
 from backend.src.dependencies import get_async_session, get_s3_client
 from backend.src.auth.dependencies import get_required_active_user
 from backend.src.users.schemas import (
+    CalendarEventCreate,
+    CalendarEventItem,
     CalendarMonthResponse,
     UserSchema,
     UserSearchItem,
@@ -114,6 +116,34 @@ async def my_calendar(
 
     service = UsersService(session)
     return await service.list_calendar(user, parse(start), parse(end))
+
+
+@router.post(
+    "/me/calendar",
+    response_model=CalendarEventItem,
+    summary="Создать событие в Яндекс Календаре",
+)
+async def create_calendar_event(
+    payload: CalendarEventCreate,
+    user: UserSchema = Depends(get_required_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = UsersService(session)
+    return await service.create_calendar_event(user, payload)
+
+
+@router.delete(
+    "/me/calendar",
+    summary="Удалить событие из Яндекс Календаря",
+)
+async def delete_calendar_event(
+    href: str = Query(..., min_length=1),
+    user: UserSchema = Depends(get_required_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    service = UsersService(session)
+    await service.delete_calendar_event(user, href)
+    return {"detail": "Event deleted"}
 
 
 @router.get(

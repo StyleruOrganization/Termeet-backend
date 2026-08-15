@@ -75,7 +75,9 @@ def build_ics(
     end: datetime,
     description: str = "",
     url: str = "",
+    sequence: int = 0,
 ) -> str:
+    stamp = caldav_stamp(datetime.now(timezone.utc))
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
@@ -84,7 +86,9 @@ def build_ics(
         "METHOD:PUBLISH",
         "BEGIN:VEVENT",
         f"UID:{uid}",
-        f"DTSTAMP:{caldav_stamp(datetime.now(timezone.utc))}",
+        f"SEQUENCE:{max(0, int(sequence))}",
+        f"DTSTAMP:{stamp}",
+        f"LAST-MODIFIED:{stamp}",
         f"DTSTART:{caldav_stamp(start)}",
         f"DTEND:{caldav_stamp(end)}",
         f"SUMMARY:{_ics_text(summary)}",
@@ -323,6 +327,111 @@ async def list_events(
         return events
 
 
+def _abs_dav(url: str) -> str:
+    if url.startswith("http"):
+        return url
+    return urljoin(CALDAV_BASE + "/", url)
+
+
+async def _put_ics(
+    client: httpx.AsyncClient, token: str, target: str, ics: str
+) -> bool:
+    response = await _dav(
+        client,
+        "PUT",
+        _abs_dav(target),
+        token,
+        ics,
+        extra={"Content-Type": "text/calendar; charset=utf-8"},
+    )
+    if response.status_code >= 400:
+        logger.warning(
+            "yandex calendar put failed %s %s",
+            response.status_code,
+            response.text[:300],
+        )
+        return False
+    return True
+
+
+async def _delete_href(
+    client: httpx.AsyncClient, token: str, href: str
+) -> bool:
+    if not (href or "").strip():
+        return False
+    response = await _dav(client, "DELETE", _abs_dav(href), token)
+    if response.status_code >= 400 and response.status_code != 404:
+        logger.warning(
+            "yandex calendar delete failed %s %s %s",
+            response.status_code,
+            href,
+            response.text[:300],
+        )
+        return False
+    return True
+
+
+def _xml_escape(value: str) -> str:
+    return (
+        (value or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+async def _find_href_by_uid(
+    client: httpx.AsyncClient,
+    token: str,
+    calendar_url: str | None,
+    uid: str,
+) -> str | None:
+    if not calendar_url or not uid:
+        return None
+    query = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<c:calendar-query xmlns:d="DAV:" '
+        'xmlns:c="urn:ietf:params:xml:ns:caldav">'
+        "<d:prop><d:getetag/><c:calendar-data/></d:prop>"
+        "<c:filter><c:comp-filter name=\"VCALENDAR\">"
+        "<c:comp-filter name=\"VEVENT\">"
+        '<c:prop-filter name="UID">'
+        f"<c:text-match>{_xml_escape(uid)}</c:text-match>"
+        "</c:prop-filter></c:comp-filter></c:comp-filter></c:filter>"
+        "</c:calendar-query>"
+    )
+    try:
+        response = await _dav(
+            client,
+            "REPORT",
+            calendar_url,
+            token,
+            query,
+            extra={
+                "Depth": "1",
+                "Content-Type": "application/xml; charset=utf-8",
+            },
+        )
+    except Exception:
+        return None
+    if response.status_code >= 400:
+        return None
+    try:
+        root = ET.fromstring(response.content)
+    except ET.ParseError:
+        return None
+    for response_el in root:
+        if _local(response_el.tag) != "response":
+            continue
+        href = _xml_text(response_el.find("{%s}href" % DAV))
+        data = response_el.find(".//{%s}calendar-data" % CALDAV)
+        ics = "".join(data.itertext()) if data is not None else ""
+        for event in parse_vevents(ics, href):
+            if event.uid == uid and href:
+                return href
+    return None
+
+
 async def upsert_event(
     account: OAuthAccount,
     uid: str,
@@ -333,34 +442,47 @@ async def upsert_event(
     url: str = "",
     href: str | None = None,
     fallback_email: str = "",
+    sequence: int = 0,
 ) -> str | None:
     if not has_calendar_scope(account):
         return None
     token = await refresh_yandex_access_token(account)
     login = yandex_login_of(account, fallback_email)
-    ics = build_ics(uid, summary, start, end, description, url)
+    ics = build_ics(
+        uid, summary, start, end, description, url, sequence=sequence
+    )
     async with httpx.AsyncClient(timeout=20) as client:
-        target = href
-        if not target:
-            calendar_url = await _discover_calendar(client, token, login)
-            if not calendar_url:
-                return None
+        calendar_url = await _discover_calendar(client, token, login)
+        found = await _find_href_by_uid(client, token, calendar_url, uid)
+        target = found or href or None
+        if not target and calendar_url:
             target = f"{calendar_url}{uid}.ics"
-        response = await _dav(
-            client,
-            "PUT",
-            target
-            if target.startswith("http")
-            else urljoin(CALDAV_BASE + "/", target),
-            token,
-            ics,
-            extra={"Content-Type": "text/calendar; charset=utf-8"},
-        )
-        if response.status_code >= 400:
-            logger.warning(
-                "yandex calendar put failed %s %s",
-                response.status_code,
-                response.text[:300],
-            )
+        if not target:
             return None
-        return target
+        if await _put_ics(client, token, target, ics):
+            return target
+        if found and href and found != href:
+            if await _put_ics(client, token, href, ics):
+                return href
+        if found:
+            await _delete_href(client, token, found)
+        if href and href != found:
+            await _delete_href(client, token, href)
+        if not calendar_url:
+            return None
+        fresh = f"{calendar_url}{uid}.ics"
+        if await _put_ics(client, token, fresh, ics):
+            return fresh
+        return None
+
+
+async def delete_event(
+    account: OAuthAccount,
+    href: str,
+    fallback_email: str = "",
+) -> bool:
+    if not has_calendar_scope(account) or not (href or "").strip():
+        return False
+    token = await refresh_yandex_access_token(account)
+    async with httpx.AsyncClient(timeout=20) as client:
+        return await _delete_href(client, token, href)

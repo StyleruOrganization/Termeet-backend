@@ -1,0 +1,15 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'severity']
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 4h
+  receiver: 'backend-webhook'
+
+receivers:
+  - name: 'backend-webhook'
+    webhook_configs:
+      - url: 'http://backend:8000/api/telemetry/alerts/webhook'
+        send_resolved: true

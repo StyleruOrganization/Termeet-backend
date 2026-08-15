@@ -106,12 +106,16 @@ services:
   alertmanager:
     image: cr.yandex/${CONTAINER_REGISTRY}/alertmanager
     container_name: alertmanager-dev
+    dns:
+      - 77.88.8.8
+      - 8.8.8.8
     env_file:
       - .env
     volumes:
       - alertmanager_data:/alertmanager
     networks:
       - backend-net
+      - nginx-proxy
     restart: unless-stopped
 
   prometheus:

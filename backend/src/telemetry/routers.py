@@ -1,6 +1,8 @@
+import json
 import logging
 from typing import Any, Dict
 from fastapi import APIRouter, HTTPException, Request, Response, status
+import aio_pika
 from sqlalchemy import text
 
 from backend.src.database import async_session_maker
@@ -96,3 +98,36 @@ async def receive_telemetry(payload: Dict[str, Any]) -> Dict[str, str]:
             logger.debug("Failed to process client_error telemetry: %s", e)
 
     return {"status": "ok"}
+
+
+@router.post(
+    "/telemetry/alerts/webhook",
+    summary="Webhook от Alertmanager для отправки в RabbitMQ alerts_queue",
+    status_code=status.HTTP_200_OK,
+)
+async def alertmanager_webhook(
+    request: Request, payload: Dict[str, Any]
+) -> Dict[str, str]:
+    rabbitmq = getattr(request.app.state, "rabbitmq", None)
+    if not rabbitmq:
+        logger.warning("RabbitMQ is not connected, alert dropped")
+        return {"status": "rabbitmq_not_connected"}
+
+    try:
+        message = aio_pika.Message(
+            body=json.dumps(payload, ensure_ascii=False).encode(),
+            content_type="application/json",
+            delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+        )
+        await rabbitmq.publish("alerts_queue", message)
+        logger.info(
+            "Alert forwarded to alerts_queue in RabbitMQ (status=%s, alerts=%d)",
+            payload.get("status"),
+            len(payload.get("alerts", [])),
+        )
+    except Exception as e:
+        logger.error("Failed to forward alert to RabbitMQ: %s", e)
+        return {"status": "error", "detail": str(e)}
+
+    return {"status": "ok"}
+

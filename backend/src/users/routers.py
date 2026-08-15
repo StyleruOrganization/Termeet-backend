@@ -1,9 +1,12 @@
-from fastapi import APIRouter, Depends, Query, Response
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
+from types_aiobotocore_s3.client import S3Client
 
 from backend.src.auth.utils import REFRESH_TOKEN_COOKIE
 from backend.src.schemas import ErrorResponse
-from backend.src.dependencies import get_async_session
+from backend.src.dependencies import get_async_session, get_s3_client
 from backend.src.auth.dependencies import get_required_active_user
 from backend.src.users.schemas import (
     CalendarMonthResponse,
@@ -124,3 +127,31 @@ async def my_meetings(
 ):
     service = MeetingsService(session)
     return await service.list_user_meetings(user)
+
+
+@router.post(
+    "/me/avatar",
+    response_model=UserSchema,
+    summary="Загрузить фото профиля",
+)
+async def upload_my_avatar(
+    file: UploadFile = File(...),
+    user: UserSchema = Depends(get_required_active_user),
+    session: AsyncSession = Depends(get_async_session),
+    s3_client: S3Client = Depends(get_s3_client),
+):
+    service = UsersService(session)
+    return await service.set_avatar(user, file, s3_client)
+
+
+@router.get(
+    "/{user_id}/avatar",
+    summary="Фото пользователя",
+)
+async def user_avatar(
+    user_id: UUID,
+    session: AsyncSession = Depends(get_async_session),
+    s3_client: S3Client = Depends(get_s3_client),
+):
+    service = UsersService(session)
+    return await service.get_avatar(user_id, s3_client)

@@ -6,6 +6,7 @@ from backend.src.meetings.routers import router as meetings_router
 from backend.src.auth.routers import router as auth_router
 from backend.src.users.routers import router as users_router
 from backend.src.feedback.routers import router as feedback_router
+from backend.src.teams.routers import router as teams_router
 from backend.src.lifespan import lifespan
 
 app = FastAPI(
@@ -35,5 +36,6 @@ app.include_router(meetings_router)
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(feedback_router)
+app.include_router(teams_router)
 
 Instrumentator().instrument(app).expose(app)

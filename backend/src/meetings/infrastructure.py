@@ -9,7 +9,7 @@ from backend.src.meetings.repositories import Repository
 from backend.src.meetings.models import Meetings
 from backend.src.users.schemas import UserSchema
 from backend.src.users.models import Users  # noqa:
-from backend.src.teams.models import Teams  # noqa:
+from backend.src.teams.models import Teams
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession, AsyncResult
@@ -69,6 +69,7 @@ class Infrastructure(Repository):
                 selectinload(Meetings.owner).selectinload(
                     Users.oauth_accounts
                 ),
+                selectinload(Meetings.team).selectinload(Teams.members),
             )
             .where(Meetings.id == id)
         )
@@ -84,7 +85,16 @@ class Infrastructure(Repository):
         return meeting
 
     async def get_meeting(self, id: UUID) -> Meetings:
-        record: Meetings | None = await self.session.get(Meetings, id)
+        query = (
+            select(Meetings)
+            .options(
+                selectinload(Meetings.owner),
+                selectinload(Meetings.team).selectinload(Teams.members),
+            )
+            .where(Meetings.id == id)
+        )
+        result = await self.session.execute(query)
+        record: Meetings | None = result.scalar_one_or_none()
 
         if not record:
             raise HTTPException(
@@ -107,6 +117,10 @@ class Infrastructure(Repository):
             invited_user_ids=[
                 str(item) for item in (meeting.invited_user_ids or [])
             ],
+            team_id=meeting.team_id if user else None,
+            is_closed=bool(user and meeting.is_closed),
+            invite_only_vote=bool(user and meeting.invite_only_vote),
+            vote_deadline=meeting.vote_deadline,
         )
 
         if user:
@@ -221,6 +235,36 @@ class Infrastructure(Repository):
         meeting.require_login_to_vote = settings.require_login_to_vote
         if settings.anyone_can_set_final is not None:
             meeting.anyone_can_set_final = settings.anyone_can_set_final
+        if settings.is_closed is not None:
+            meeting.is_closed = settings.is_closed
+        if settings.invite_only_vote is not None:
+            meeting.invite_only_vote = settings.invite_only_vote
+        if meeting.is_closed:
+            meeting.invite_only_vote = True
+        elif meeting.team_id is None:
+            meeting.invite_only_vote = False
+        if "vote_deadline" in settings.model_fields_set:
+            if meeting.vote_deadline != settings.vote_deadline:
+                meeting.remind_sent = []
+            meeting.vote_deadline = settings.vote_deadline
+        if settings.remind_offsets is not None:
+            new_offsets = list(settings.remind_offsets)
+            if list(meeting.remind_offsets or []) != new_offsets:
+                meeting.remind_sent = []
+            meeting.remind_offsets = new_offsets
+        if settings.remind_enabled is not None:
+            meeting.remind_enabled = bool(settings.remind_enabled)
+        if meeting.remind_enabled and not list(meeting.remind_offsets or []):
+            meeting.remind_offsets = [1440]
+        if meeting.remind_enabled and meeting.vote_deadline is None:
+            meeting.remind_enabled = False
+        if settings.lock_vote_after_deadline is not None:
+            meeting.lock_vote_after_deadline = bool(
+                settings.lock_vote_after_deadline
+            )
+        if meeting.vote_deadline is None:
+            meeting.lock_vote_after_deadline = False
+            meeting.remind_enabled = False
         self.session.add(meeting)
         await self.session.flush()
         return meeting
@@ -314,6 +358,11 @@ class Infrastructure(Repository):
             final_slot=meeting.final_slot or None,
             participant_names=names,
             participant_count=len(names),
+            team_id=meeting.team_id,
+            team_name=getattr(meeting.team, "name", None)
+            if getattr(meeting, "team", None)
+            else None,
+            is_closed=bool(getattr(meeting, "is_closed", False)),
         )
 
     async def list_user_meetings(self, user: UserSchema):
@@ -327,13 +376,16 @@ class Infrastructure(Repository):
         items: dict[str, UserMeetingItem] = {}
 
         owned = await self.session.execute(
-            select(Meetings).where(Meetings.owner_id == uid)
+            select(Meetings)
+            .options(selectinload(Meetings.team))
+            .where(Meetings.owner_id == uid)
         )
         for meeting in owned.scalars().all():
             items[str(meeting.id)] = self._to_meeting_item(meeting, "owner")
 
         participated = await self.session.execute(
             select(Meetings)
+            .options(selectinload(Meetings.team))
             .join(
                 MeetingsUsers, MeetingsUsers.meeting_id == Meetings.id
             )
@@ -345,9 +397,9 @@ class Infrastructure(Repository):
                 items[key] = self._to_meeting_item(meeting, "participant")
 
         observed = await self.session.execute(
-            select(Meetings).where(
-                Meetings.observers.contains([{"user_id": uid_str}])
-            )
+            select(Meetings)
+            .options(selectinload(Meetings.team))
+            .where(Meetings.observers.contains([{"user_id": uid_str}]))
         )
         for meeting in observed.scalars().all():
             key = str(meeting.id)
@@ -355,14 +407,38 @@ class Infrastructure(Repository):
                 items[key] = self._to_meeting_item(meeting, "observer")
 
         invited = await self.session.execute(
-            select(Meetings).where(
-                Meetings.invited_user_ids.contains([uid_str])
-            )
+            select(Meetings)
+            .options(selectinload(Meetings.team))
+            .where(Meetings.invited_user_ids.contains([uid_str]))
         )
         for meeting in invited.scalars().all():
             key = str(meeting.id)
             if key not in items:
                 items[key] = self._to_meeting_item(meeting, "invited")
+
+        from backend.src.teams.models import TeamsUsers
+
+        team_ids = (
+            await self.session.execute(
+                select(Teams.id).where(Teams.user_id == uid)
+            )
+        ).scalars().all()
+        member_team_ids = (
+            await self.session.execute(
+                select(TeamsUsers.team_id).where(TeamsUsers.user_id == uid)
+            )
+        ).scalars().all()
+        all_team_ids = list({*team_ids, *member_team_ids})
+        if all_team_ids:
+            team_meets = await self.session.execute(
+                select(Meetings)
+                .options(selectinload(Meetings.team))
+                .where(Meetings.team_id.in_(all_team_ids))
+            )
+            for meeting in team_meets.scalars().all():
+                key = str(meeting.id)
+                if key not in items:
+                    items[key] = self._to_meeting_item(meeting, "invited")
 
         return list(items.values())
 

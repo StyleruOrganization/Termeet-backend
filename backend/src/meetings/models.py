@@ -1,8 +1,9 @@
+from datetime import datetime
 from uuid import uuid4, UUID
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Boolean, String, ARRAY, ForeignKey
+from sqlalchemy import Boolean, DateTime, String, ARRAY, ForeignKey
 from sqlalchemy.dialects.postgresql.json import JSONB
 
 from backend.src.models import Base
@@ -66,6 +67,27 @@ class Meetings(Base):
     )
     calendar_events: Mapped[dict] = mapped_column(
         JSONB, default=lambda: {}, server_default="{}", nullable=False
+    )
+    is_closed: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    invite_only_vote: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    vote_deadline: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    remind_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    remind_offsets: Mapped[list] = mapped_column(
+        JSONB, default=lambda: [], server_default="[]", nullable=False
+    )
+    remind_sent: Mapped[list] = mapped_column(
+        JSONB, default=lambda: [], server_default="[]", nullable=False
+    )
+    lock_vote_after_deadline: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
     )
 
     # Поля, обязательные для залогинов

@@ -101,6 +101,7 @@ async def notify_final_time(
     when_text: str | None = None,
     ics_content: str | None = None,
     skip_emails: set[str] | None = None,
+    skip_ics_emails: set[str] | None = None,
 ) -> None:
     link = meet_url(meeting_hash)
     extra = f" Ссылка на звонок: {join_link}" if join_link else ""
@@ -109,32 +110,33 @@ async def notify_final_time(
     if changed:
         subject = f"Время изменили: {meeting_name}"
         heading = "Итоговое время обновили"
-        body = (
+        base_body = (
             f"Для встречи «{meeting_name}» выбрали другое итоговое время."
             f"{when} Откройте сетку, фиолетовые ячейки — это оно.{extra}"
-            f"{ics_note}"
         )
     else:
         subject = f"Назначено время: {meeting_name}"
         heading = "Итоговое время встречи"
-        body = (
+        base_body = (
             f"Для встречи «{meeting_name}» выбрали итоговое время."
             f"{when} Откройте сетку, фиолетовые ячейки — это оно.{extra}"
-            f"{ics_note}"
         )
-    skip = skip_emails or set()
+    skip = {item.lower() for item in (skip_emails or set()) if item}
+    skip_ics = {item.lower() for item in (skip_ics_emails or set()) if item}
     seen: set[str] = set()
     for email in emails:
-        if not email or email in seen or email in skip:
+        key = (email or "").lower()
+        if not key or key in seen or key in skip:
             continue
-        seen.add(email)
+        seen.add(key)
+        attach = ics_content if key not in skip_ics else None
         await send_meet_email(
             recipient=email,
             subject=subject,
             heading=heading,
-            body=body,
+            body=base_body + (ics_note if attach else ""),
             cta=link,
-            ics_content=ics_content,
+            ics_content=attach,
         )
 
 
@@ -170,3 +172,29 @@ async def notify_calendar_conflict(
         cta=link,
         ics_content=ics_content,
     )
+
+
+async def notify_vote_nudge(
+    emails: list[str],
+    meeting_name: str,
+    meeting_hash,
+    deadline_text: str,
+) -> None:
+    link = meet_url(meeting_hash)
+    seen: set[str] = set()
+    for email in emails:
+        key = (email or "").lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        await send_meet_email(
+            recipient=email,
+            subject=f"Выберите время: {meeting_name}",
+            heading="Пора выбрать время",
+            body=(
+                f"Во встрече «{meeting_name}» ещё нет вашего времени. "
+                f"Голосование открыто до {deadline_text}. "
+                "Откройте сетку и отметьте, когда можете."
+            ),
+            cta=link,
+        )

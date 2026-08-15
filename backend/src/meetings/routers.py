@@ -11,6 +11,7 @@ from backend.src.database import async_session_maker
 from backend.src.auth.dependencies import get_current_active_user
 from backend.src.users.schemas import UserSchema
 from .live import meet_live_hub, optional_user_from_token
+from .permissions import can_view_meeting
 from .schemas import (
     MeetCreate,
     MeetFinalUpdate,
@@ -64,11 +65,14 @@ async def meeting_live(
     async with async_session_maker() as session:
         service = Service(session)
         try:
-            await service.repository.get_meeting(hash)
+            record = await service.repository.get_meeting(hash)
         except HTTPException:
             await websocket.close(code=1008)
             return
         user = await optional_user_from_token(token, session)
+        if not can_view_meeting(record, user):
+            await websocket.close(code=1008)
+            return
 
     await meet_live_hub.connect(str(hash), websocket, user)
     keepalive = asyncio.create_task(meet_live_hub.keepalive(websocket))

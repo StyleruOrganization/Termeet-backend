@@ -1,5 +1,6 @@
-from typing import TYPE_CHECKING
+import asyncio
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
 from botocore.exceptions import ClientError
 from grpc import aio
@@ -17,6 +18,7 @@ from backend.src.meetings.grpc.grpc_service import MeetingCreateService
 from backend.src.broker import RabbitMQClient
 from backend.src.config import config
 from backend.src.database import async_session_maker
+from backend.src.notifications.vote_reminders import run_vote_reminder_loop
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -84,11 +86,25 @@ async def lifespan_s3(app: FastAPI):
 
 
 @asynccontextmanager
+async def lifespan_vote_reminders(app: FastAPI):
+    task = asyncio.create_task(run_vote_reminder_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
+@asynccontextmanager
 async def lifespan(app: FastAPI):
     async with (
         lifespan_docs(app),
         lifespan_broker(app),
         lifespan_grpc(app),
         lifespan_s3(app),
+        lifespan_vote_reminders(app),
     ):
         yield

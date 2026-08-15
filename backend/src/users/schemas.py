@@ -62,9 +62,13 @@ class UserSchema(BaseModel):
     has_yandex: bool = False
     has_telemost: bool = False
     has_calendar: bool = False
+    has_avatar: bool = False
     yandex_login: str | None = None
     yandex_email: str | None = None
     yandex_name: str | None = None
+    contact_email: str | None = None
+    contact_telegram: str | None = None
+    contact_vk: str | None = None
 
     model_config = ConfigDict(from_attributes=True, extra="ignore")
 
@@ -101,12 +105,16 @@ class UserSchema(BaseModel):
             "notify_on_vote": getattr(data, "notify_on_vote", True),
             "notify_on_final": getattr(data, "notify_on_final", True),
             "show_onboarding": getattr(data, "show_onboarding", True),
+            "has_avatar": bool(getattr(data, "avatar_key", None)),
             "has_yandex": False,
             "has_telemost": False,
             "has_calendar": False,
             "yandex_login": None,
             "yandex_email": None,
             "yandex_name": None,
+            "contact_email": getattr(data, "contact_email", None),
+            "contact_telegram": getattr(data, "contact_telegram", None),
+            "contact_vk": getattr(data, "contact_vk", None),
         }
         from backend.src.integrations.yandex_calendar import has_calendar_scope
         from backend.src.integrations.yandex_telemost import (
@@ -138,6 +146,9 @@ class UserSettingsUpdate(BaseModel):
     notify_on_vote: bool | None = None
     notify_on_final: bool | None = None
     show_onboarding: bool | None = None
+    contact_email: str | None = Field(None, max_length=256)
+    contact_telegram: str | None = Field(None, max_length=128)
+    contact_vk: str | None = Field(None, max_length=256)
 
     model_config = ConfigDict(extra="ignore")
 
@@ -146,6 +157,16 @@ class UserSettingsUpdate(BaseModel):
     def strip_name(cls, value):
         if isinstance(value, str):
             return value.strip()
+        return value
+
+    @field_validator(
+        "contact_email", "contact_telegram", "contact_vk", mode="before"
+    )
+    @classmethod
+    def strip_contact(cls, value):
+        if isinstance(value, str):
+            text = value.strip()
+            return text or None
         return value
 
     @field_validator("availability_template")
@@ -160,6 +181,7 @@ class UserSearchItem(BaseModel):
     id: UUID
     first_name: str
     last_name: str
+    has_avatar: bool = False
 
 
 class CalendarEventItem(BaseModel):

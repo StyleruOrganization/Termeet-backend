@@ -72,6 +72,10 @@ class Users(Base):
     show_onboarding: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )
+    avatar_key: Mapped[Optional[str]] = mapped_column(String(256))
+    contact_email: Mapped[Optional[str]] = mapped_column(String(256))
+    contact_telegram: Mapped[Optional[str]] = mapped_column(String(128))
+    contact_vk: Mapped[Optional[str]] = mapped_column(String(256))
 
     oauth_accounts: Mapped[Optional[list["OAuthAccount"]]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -88,4 +92,8 @@ class Users(Base):
 
     teams: Mapped[Optional[list["Teams"]]] = relationship(
         back_populates="user"
+    )
+    member_teams: Mapped[list["Teams"]] = relationship(
+        secondary="teams_users",
+        back_populates="members",
     )

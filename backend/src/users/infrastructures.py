@@ -6,7 +6,7 @@ from sqlalchemy import delete, or_, select, update
 from backend.src.auth.models import OAuthAccount
 from backend.src.feedback.models import Feedback
 from backend.src.meetings.models import Meetings, MeetingsUsers
-from backend.src.teams.models import Teams
+from backend.src.teams.models import Teams, TeamsUsers
 from backend.src.users.models import Users
 from backend.src.users.repositories import Repository
 from backend.src.users.schemas import UserSearchItem, UserSettingsUpdate
@@ -65,7 +65,30 @@ class Infrastructure(Repository):
             record.notify_on_final = data["notify_on_final"]
         if "show_onboarding" in data and data["show_onboarding"] is not None:
             record.show_onboarding = data["show_onboarding"]
+        if "contact_email" in data:
+            record.contact_email = data["contact_email"]
+        if "contact_telegram" in data:
+            record.contact_telegram = data["contact_telegram"]
+        if "contact_vk" in data:
+            record.contact_vk = data["contact_vk"]
 
+        self.session.add(record)
+        await self.session.flush()
+        loaded = await self.session.execute(
+            select(Users)
+            .options(selectinload(Users.oauth_accounts))
+            .where(Users.id == user_id)
+        )
+        return loaded.scalar_one()
+
+    async def set_avatar_key(self, user_id, key: str | None) -> Users:
+        record: Users | None = await self.session.get(Users, user_id)
+        if not record:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+        record.avatar_key = key
         self.session.add(record)
         await self.session.flush()
         loaded = await self.session.execute(
@@ -99,6 +122,7 @@ class Infrastructure(Repository):
                 id=user.id,
                 first_name=user.first_name,
                 last_name=user.last_name,
+                has_avatar=bool(user.avatar_key),
             )
             for user in result.scalars().all()
         ]
@@ -150,8 +174,15 @@ class Infrastructure(Repository):
                 .where(Meetings.team_id.in_(team_ids))
                 .values(team_id=None)
             )
+            await self.session.execute(
+                delete(TeamsUsers).where(TeamsUsers.team_id.in_(team_ids))
+            )
             for team in teams:
                 await self.session.delete(team)
+
+        await self.session.execute(
+            delete(TeamsUsers).where(TeamsUsers.user_id == user_id)
+        )
 
         await self.session.delete(record)
         await self.session.flush()

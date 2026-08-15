@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
@@ -14,6 +15,23 @@ _API = ConfigDict(
     populate_by_name=True,
     serialize_by_alias=True,
 )
+
+MAX_REMIND_OFFSETS = 5
+MIN_REMIND_MINUTES = 15
+MAX_REMIND_MINUTES = 10080
+
+
+def normalize_remind_offsets(raw: list | None) -> list[int]:
+    cleaned: list[int] = []
+    for item in raw or []:
+        try:
+            minutes = int(item)
+        except (TypeError, ValueError):
+            continue
+        if MIN_REMIND_MINUTES <= minutes <= MAX_REMIND_MINUTES:
+            cleaned.append(minutes)
+    unique = sorted(set(cleaned))
+    return unique[:MAX_REMIND_OFFSETS]
 
 
 class SlotsUser(BaseModel):
@@ -70,8 +88,47 @@ class MeetSettingsUpdate(BaseModel):
         ),
         serialization_alias="anyoneCanSetFinal",
     )
+    is_closed: bool | None = Field(
+        None,
+        validation_alias=_json_names("is_closed", "isClosed"),
+        serialization_alias="isClosed",
+    )
+    invite_only_vote: bool | None = Field(
+        None,
+        validation_alias=_json_names("invite_only_vote", "inviteOnlyVote"),
+        serialization_alias="inviteOnlyVote",
+    )
+    vote_deadline: datetime | None = Field(
+        None,
+        validation_alias=_json_names("vote_deadline", "voteDeadline"),
+        serialization_alias="voteDeadline",
+    )
+    remind_enabled: bool | None = Field(
+        None,
+        validation_alias=_json_names("remind_enabled", "remindEnabled"),
+        serialization_alias="remindEnabled",
+    )
+    remind_offsets: list[int] | None = Field(
+        None,
+        validation_alias=_json_names("remind_offsets", "remindOffsets"),
+        serialization_alias="remindOffsets",
+    )
+    lock_vote_after_deadline: bool | None = Field(
+        None,
+        validation_alias=_json_names(
+            "lock_vote_after_deadline", "lockVoteAfterDeadline"
+        ),
+        serialization_alias="lockVoteAfterDeadline",
+    )
 
     model_config = ConfigDict(populate_by_name=True)
+
+    @field_validator("remind_offsets")
+    @classmethod
+    def validate_remind_offsets(cls, value: list[int] | None):
+        if value is None:
+            return None
+        return normalize_remind_offsets(value)
 
 
 class MeetFinalUpdate(BaseModel):
@@ -108,6 +165,9 @@ class UserMeetingItem(BaseModel):
         default_factory=list, serialization_alias="participantNames"
     )
     participant_count: int = Field(0, serialization_alias="participantCount")
+    team_id: int | None = Field(None, serialization_alias="teamId")
+    team_name: str | None = Field(None, serialization_alias="teamName")
+    is_closed: bool = Field(False, serialization_alias="isClosed")
 
     model_config = _API
 
@@ -127,6 +187,26 @@ class Meet(BaseModel):
         validation_alias=_json_names("invited_user_ids", "invitedUserIds"),
         serialization_alias="invitedUserIds",
     )
+    team_id: int | None = Field(
+        None,
+        validation_alias=_json_names("team_id", "teamId"),
+        serialization_alias="teamId",
+    )
+    is_closed: bool = Field(
+        False,
+        validation_alias=_json_names("is_closed", "isClosed"),
+        serialization_alias="isClosed",
+    )
+    invite_only_vote: bool = Field(
+        False,
+        validation_alias=_json_names("invite_only_vote", "inviteOnlyVote"),
+        serialization_alias="inviteOnlyVote",
+    )
+    vote_deadline: datetime | None = Field(
+        None,
+        validation_alias=_json_names("vote_deadline", "voteDeadline"),
+        serialization_alias="voteDeadline",
+    )
 
     model_config = _API
 
@@ -137,6 +217,14 @@ class MeetCreate(Meet):
         validation_alias=_json_names("create_telemost", "createTelemost"),
         serialization_alias="createTelemost",
     )
+
+
+class OrganizerContacts(BaseModel):
+    email: str | None = None
+    telegram: str | None = None
+    vk: str | None = None
+
+    model_config = _API
 
 
 class MeetResponse(Meet):
@@ -166,6 +254,18 @@ class MeetResponse(Meet):
     permissions: MeetPermissions | None = None
     calendar_sync: "CalendarSyncInfo | None" = Field(
         None, serialization_alias="calendarSync"
+    )
+    team_name: str | None = Field(None, serialization_alias="teamName")
+    access_denied: bool = Field(False, serialization_alias="accessDenied")
+    organizer_contacts: OrganizerContacts | None = Field(
+        None, serialization_alias="organizerContacts"
+    )
+    remind_enabled: bool = Field(False, serialization_alias="remindEnabled")
+    remind_offsets: list[int] = Field(
+        default_factory=list, serialization_alias="remindOffsets"
+    )
+    lock_vote_after_deadline: bool = Field(
+        False, serialization_alias="lockVoteAfterDeadline"
     )
 
     @field_validator("slots", mode="before")

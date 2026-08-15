@@ -1,3 +1,4 @@
 FROM prom/prometheus:v3.2.1
 
 COPY prometheus_data/prometheus.yml /etc/prometheus/prometheus.yml
+COPY prometheus_data/alert_rules.yml /etc/prometheus/alert_rules.yml

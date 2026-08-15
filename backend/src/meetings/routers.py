@@ -20,6 +20,7 @@ from .schemas import (
     SlotsUser,
 )
 from .services import Service
+from backend.src.telemetry.metrics import MEETINGS_CREATED_TOTAL, SLOTS_SAVED_TOTAL
 
 
 router = APIRouter(prefix="/meet", tags=["Meet"])
@@ -116,7 +117,12 @@ async def create_meeting(
     user: UserSchema | None = Depends(get_current_active_user),
 ) -> MeetResponse:
     service = Service(session)
-    return await service.create_meeting(meeting, user)
+    res = await service.create_meeting(meeting, user)
+    try:
+        MEETINGS_CREATED_TOTAL.labels(source="web").inc()
+    except Exception:
+        pass
+    return res
 
 
 @router.patch(
@@ -225,7 +231,12 @@ async def add_slots(
     user: UserSchema | None = Depends(get_current_active_user),
 ):
     service = Service(session)
-    return await service.add_slots(hash, slots, user)
+    res = await service.add_slots(hash, slots, user)
+    try:
+        SLOTS_SAVED_TOTAL.labels(auth_status="auth" if user else "guest").inc()
+    except Exception:
+        pass
+    return res
 
 
 @router.patch(

@@ -46,10 +46,12 @@ jobs:
           docker build -f Dockerfile.dev -t $REGISTRY/backend-dev .
           docker build -f Dockerfile.grafana -t $REGISTRY/grafana .
           docker build -f Dockerfile.prometheus -t $REGISTRY/prometheus .
+          docker build -f Dockerfile.alertmanager -t $REGISTRY/alertmanager .
 
           docker push $REGISTRY/backend-dev
           docker push $REGISTRY/grafana
           docker push $REGISTRY/prometheus
+          docker push $REGISTRY/alertmanager
 
       - name: Copy docker-compose to server
         uses: appleboy/scp-action@v0.1.7

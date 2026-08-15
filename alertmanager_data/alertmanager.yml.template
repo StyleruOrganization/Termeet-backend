@@ -1,0 +1,26 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 2m
+  repeat_interval: 4h
+  receiver: 'telegram-alerts'
+
+receivers:
+  - name: 'telegram-alerts'
+    telegram_configs:
+      - bot_token: '${TELEGRAM_BOT_TOKEN}'
+        chat_id: ${TELEGRAM_ALERTS_CHAT_ID}
+        message_thread_id: ${TELEGRAM_ALERTS_THREAD_ID}
+        parse_mode: 'HTML'
+        send_resolved: true
+        message: |
+          {{ if eq .Status "firing" }}🔥 <b>[ALARM: {{ .CommonLabels.severity | toUpper }}]</b>{{ else }}✅ <b>[RESOLVED]</b>{{ end }}
+          <b>{{ .CommonAnnotations.summary }}</b>
+
+          {{ range .Alerts }}
+          • {{ .Annotations.description }}
+          {{ end }}
+          <i>Мониторинг:</i> Termeet Monitoring

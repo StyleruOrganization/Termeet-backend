@@ -1,50 +1,63 @@
 {
-  "title": "Termeet API & Business",
-  "uid": "termeet-api",
+  "title": "Termeet Server & Infrastructure",
+  "uid": "termeet-server-infra",
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 1,
   "refresh": "10s",
-  "tags": ["termeet", "backend", "api"],
+  "tags": ["termeet", "infra", "node-exporter"],
   "panels": [
     {
       "id": 1,
       "type": "stat",
-      "title": "Запросы / сек",
+      "title": "Загрузка CPU хоста",
       "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum(rate(http_requests_total[1m]))",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": { "unit": "reqps", "decimals": 2 }
-      }
-    },
-    {
-      "id": 2,
-      "type": "stat",
-      "title": "Ошибки 5xx / сек",
-      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [
-        {
-          "expr": "sum(rate(http_requests_total{status=~\"5..\"}[1m]))",
+          "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100)",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
-          "decimals": 2,
+          "unit": "percent",
+          "decimals": 1,
           "color": { "mode": "thresholds" },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "red", "value": 0.01 }
+              { "color": "#EAB839", "value": 75 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Использование RAM",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "#EAB839", "value": 80 },
+              { "color": "red", "value": 90 }
             ]
           }
         }
@@ -53,26 +66,26 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Latency p95",
+      "title": "Свободно на диске (Root)",
       "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "expr": "node_filesystem_avail_bytes{mountpoint=\"/host/rootfs\"}",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
-          "decimals": 2,
+          "unit": "bytes",
+          "decimals": 1,
           "color": { "mode": "thresholds" },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "#EAB839", "value": 0.5 },
-              { "color": "red", "value": 1.5 }
+              { "color": "red", "value": null },
+              { "color": "#EAB839", "value": 5000000000 },
+              { "color": "green", "value": 15000000000 }
             ]
           }
         }
@@ -81,61 +94,56 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Создано встреч",
+      "title": "Uptime сервера",
       "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum(termeet_meetings_created_total)",
+          "expr": "node_time_seconds - node_boot_time_seconds",
           "refId": "A"
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "none", "decimals": 0 }
+        "defaults": { "unit": "s", "decimals": 0 }
       }
     },
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Запросы по статусу",
+      "title": "Загрузка CPU во времени",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum by (status) (rate(http_requests_total[1m]))",
-          "legendFormat": "{{status}}",
+          "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100)",
+          "legendFormat": "CPU Used %",
           "refId": "A"
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "reqps" }
+        "defaults": { "unit": "percent", "decimals": 1 }
       }
     },
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Задержка API (p50, p95, p99)",
+      "title": "Сетевой трафик (Сеть I/O)",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
-          "legendFormat": "p50",
+          "expr": "sum(rate(node_network_receive_bytes_total{device!~\"lo|veth.*|docker.*\"}[1m]))",
+          "legendFormat": "Receive (Rx)",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
-          "legendFormat": "p95",
+          "expr": "sum(rate(node_network_transmit_bytes_total{device!~\"lo|veth.*|docker.*\"}[1m]))",
+          "legendFormat": "Transmit (Tx)",
           "refId": "B"
-        },
-        {
-          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
-          "legendFormat": "p99",
-          "refId": "C"
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "s", "decimals": 3 }
+        "defaults": { "unit": "Bps", "decimals": 1 }
       }
     }
   ]

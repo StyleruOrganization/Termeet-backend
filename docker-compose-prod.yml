@@ -10,6 +10,7 @@ volumes:
   rabbitmq-data:
   minio_data:
   prometheus_data:
+  alertmanager_data:
   grafana_data:
 
 services:  
@@ -103,6 +104,17 @@ services:
       LETSENCRYPT_HOST: minio.termeet.tech
       LETSENCRYPT_EMAIL: maklakov.daniils@yandex.ru
 
+  alertmanager:
+    image: cr.yandex/${CONTAINER_REGISTRY}/alertmanager
+    container_name: alertmanager-prod
+    env_file:
+      - .env
+    volumes:
+      - alertmanager_data:/alertmanager
+    networks:
+      - backend-net
+    restart: unless-stopped
+
   prometheus:
     image: cr.yandex/${CONTAINER_REGISTRY}/prometheus
     container_name: prometheus-prod
@@ -114,6 +126,8 @@ services:
     networks:
       - backend-net
     restart: unless-stopped
+    depends_on:
+      - alertmanager
 
   grafana:
     image: cr.yandex/${CONTAINER_REGISTRY}/grafana

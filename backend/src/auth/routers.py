@@ -23,6 +23,7 @@ from backend.src.integrations.yandex_telemost import (
     YANDEX_INTEGRATION_SCOPES,
 )
 from backend.src.auth.services import Service
+from backend.src.telemetry.metrics import USERS_REGISTERED_TOTAL
 from backend.src.auth.dependencies import (
     get_current_active_user,
     get_current_auth_user_from_validation,
@@ -115,6 +116,10 @@ async def auth_yandex_issue_jwt(
         user_data, tokens, current
     )
     await service.set_verify_user(user)
+    try:
+        USERS_REGISTERED_TOTAL.labels(provider="yandex").inc()
+    except Exception:
+        pass
 
     access_token, refresh_token = await service.create_tokens(user)
 
@@ -312,6 +317,10 @@ async def default_register_user(
 ):
     service = Service(session)
     user = await service.register_user(user_data)
+    try:
+        USERS_REGISTERED_TOTAL.labels(provider="email").inc()
+    except Exception:
+        pass
 
     if user_data.do_verify_email:
         await service.create_verification_token_and_send_email(user)

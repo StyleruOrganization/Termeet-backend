@@ -1,0 +1,9 @@
+FROM prom/alertmanager:v0.28.0
+
+USER root
+COPY alertmanager_data/alertmanager.yml.template /etc/alertmanager/alertmanager.yml.template
+COPY alertmanager_data/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+USER nobody
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
